@@ -20,7 +20,7 @@
     // ─────────────────────────────────────────────
     //  CHATBOT GRAFICO
     // ─────────────────────────────────────────────
-    var ETASS_AVATAR = 'https://th.bing.com/th/id/R.382dcfa0f97eaadc6e03717a5afd5260?rik=ry76%2b8hbIbc1AA&riu=http%3a%2f%2fpluspng.com%2fimg-png%2flogo-anonymous-png-anonymous-logo-with-slogan-transparent-by-anondesign-4000.png&ehk=9Au4TUWZ2%2bMfgFRIbaXfs9cECtWYO1Pt7KlF2MnPpu8%3d&risl=&pid=ImgRaw&r=0';
+    var ETASS_AVATAR = 'https://raw.githubusercontent.com/Davide-Scarsi/Anonymous-autobot/main/img/Avatar.png';
 
     function createChatBot() {
         var style = document.createElement('style');
@@ -292,7 +292,7 @@
                 parent.insertBefore(wrap, iframe);
                 wrap.appendChild(iframe);
 
-                var ANON_SRC = 'https://th.bing.com/th/id/R.3999d6faad41d901a676af0b53489a74?rik=e2pcplsBLwzkeA&riu=http%3a%2f%2fpluspng.com%2fimg-png%2flogo-anonymous-png-nzlfnl-png-858.png&ehk=u32OFGT3dJ4fPH9G7cphaWefNRm6HFOsAMYbf8RDgKY%3d&risl=&pid=ImgRaw&r=0';
+                var ANON_SRC = 'https://raw.githubusercontent.com/Davide-Scarsi/Anonymous-autobot/main/img/Anonymous.png';
 
                 // Crea il container glitch con 3 layer (base + 2 copie RGB)
                 var box = document.createElement('div');
