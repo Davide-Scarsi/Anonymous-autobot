@@ -177,15 +177,29 @@
         player = new Vimeo.Player(iframeEl);
 
         // ── Navigazione prossima lezione (sempre attivo) ──
+        // Ricalcolato ogni volta perché il pulsante può apparire dopo il caricamento
         function getNextLessonUrl() {
-            const nextBtn = Array.from(document.querySelectorAll('a.ld-button')).find(function (a) {
-                return a.textContent.includes('Prossima');
-            });
-            if (nextBtn && nextBtn.href) return nextBtn.href;
-
-            const allLessons = Array.from(document.querySelectorAll('a.ld-lesson-item-preview-heading[href]'));
-            const currentUrl = window.location.href.split('?')[0].replace(/\/$/, '');
-            const currentIdx = allLessons.findIndex(function (a) {
+            // 1) Cerca qualsiasi pulsante .ld-button con testo di navigazione
+            var keywords = ['Prossima', 'Quiz', 'Successiv', 'Next', 'Continua', 'Avanti'];
+            var allBtns = Array.from(document.querySelectorAll('a.ld-button[href]'));
+            for (var i = 0; i < allBtns.length; i++) {
+                var txt = allBtns[i].textContent;
+                for (var k = 0; k < keywords.length; k++) {
+                    if (txt.indexOf(keywords[k]) !== -1) {
+                        return allBtns[i].href;
+                    }
+                }
+            }
+            // 2) Se non trovato con keyword, prendi il primo .ld-button con icona freccia
+            var arrowBtn = document.querySelector('a.ld-button[href] .ld-icon-arrow-right');
+            if (arrowBtn) {
+                var link = arrowBtn.closest('a.ld-button');
+                if (link && link.href) return link.href;
+            }
+            // 3) Fallback: cerca nella sidebar la lezione successiva
+            var allLessons = Array.from(document.querySelectorAll('a.ld-lesson-item-preview-heading[href]'));
+            var currentUrl = window.location.href.split('?')[0].replace(/\/$/, '');
+            var currentIdx = allLessons.findIndex(function (a) {
                 return a.href.replace(/\/$/, '') === currentUrl;
             });
             if (currentIdx !== -1 && currentIdx + 1 < allLessons.length) {
@@ -194,8 +208,8 @@
             return null;
         }
 
-        const nextLessonUrl = getNextLessonUrl();
-        console.log('[Video] Prossima lezione URL:', nextLessonUrl);
+        // Log iniziale per debug
+        console.log('[Video] Prossima lezione URL (init):', getNextLessonUrl());
 
         player.on('ended', function () {
             if (!E.AUTO_SKIP_VIDEO) {
@@ -204,11 +218,22 @@
             }
             console.log('[Video] ENDED — attendo completamento piattaforma...');
             setTimeout(function () {
-                if (nextLessonUrl) {
-                    console.log('[Video] Navigazione verso:', nextLessonUrl);
-                    window.location.href = nextLessonUrl;
+                // Ricalcola ora — il pulsante potrebbe essere apparso dopo il video ended
+                var nextUrl = getNextLessonUrl();
+                if (nextUrl) {
+                    console.log('[Video] Navigazione verso:', nextUrl);
+                    window.location.href = nextUrl;
                 } else {
-                    console.warn('[Video] Prossima lezione non trovata');
+                    console.warn('[Video] Prossima lezione non trovata — riprovo tra 3s...');
+                    setTimeout(function () {
+                        var retryUrl = getNextLessonUrl();
+                        if (retryUrl) {
+                            console.log('[Video] Navigazione (retry) verso:', retryUrl);
+                            window.location.href = retryUrl;
+                        } else {
+                            console.warn('[Video] Prossima lezione non trovata dopo retry');
+                        }
+                    }, 3000);
                 }
             }, 3000);
         });
@@ -243,7 +268,7 @@
             console.log('[Video] Bot fermato — overlay disattivato.');
         }
 
-        // ── Skip video (dentro initVideo per accesso a nextLessonUrl) ──
+        // ── Skip video (dentro initVideo per accesso a getNextLessonUrl) ──
         function trySkipVideo(prevAttempts, gen) {
             if (gen !== skipGeneration) return;
             var attempt = (prevAttempts || 0) + 1;
@@ -319,13 +344,16 @@
                                 console.log('[Video] Skip confermato ✅');
                                 // Rilancia play e fallback navigazione se 'ended' non scatta
                                 player.play().catch(function () {});
-                                if (nextLessonUrl) {
-                                    setTimeout(function () {
-                                        if (gen !== skipGeneration) return;
-                                        console.log('[Video] Fallback — navigazione forzata verso:', nextLessonUrl);
-                                        window.location.href = nextLessonUrl;
-                                    }, 6000);
-                                }
+                                setTimeout(function () {
+                                    if (gen !== skipGeneration) return;
+                                    var fallbackUrl = getNextLessonUrl();
+                                    if (fallbackUrl) {
+                                        console.log('[Video] Fallback — navigazione forzata verso:', fallbackUrl);
+                                        window.location.href = fallbackUrl;
+                                    } else {
+                                        console.warn('[Video] Fallback — nessun URL trovato');
+                                    }
+                                }, 6000);
                             }
                         });
                     });
