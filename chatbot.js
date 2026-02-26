@@ -3,7 +3,7 @@
 //  Legge da window.__ETASS — espone chatBot su window.__ETASS.chatBot
 // ─────────────────────────────────────────────
 (function () {
-    var VERSION = 'v1.0.14';
+    var VERSION = 'v1.0.15';
     var E = window.__ETASS;
     var botEnabled     = E.botEnabled;
     var autoQuiz       = E.autoQuiz;
@@ -19,14 +19,14 @@
             '#etass-chat{position:fixed;bottom:24px;right:24px;width:320px;background:#f5f7fa;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.22);display:flex;flex-direction:column;font-family:"Segoe UI",Arial,sans-serif;z-index:2147483647;overflow:hidden;transform:translateY(calc(100% + 32px));opacity:0;max-height:700px;transition:transform .5s cubic-bezier(.22,1,.36,1),opacity .5s,width .3s cubic-bezier(.22,1,.36,1),border-radius .3s cubic-bezier(.22,1,.36,1),max-height .45s cubic-bezier(.22,1,.36,1);}',
             '#etass-chat.etass-visible{transform:translateY(0);opacity:1;}',
             /* Stato minimizzato: cerchio */
-            '#etass-chat.etass-minimized{width:68px;max-height:68px;border-radius:50%;cursor:pointer;box-shadow:0 4px 18px rgba(0,0,0,.28);}',
+            '#etass-chat.etass-minimized{width:68px;max-height:68px;border-radius:50%;cursor:pointer;box-shadow:0 4px 18px rgba(0,0,0,.28);overflow:visible;}',
             /* Fase 1 apertura: larghezza espansa, border-radius già corretti, altezza ancora compressa */
             '#etass-chat.etass-pre-expand{width:320px;max-height:68px;border-radius:16px;cursor:default;pointer-events:none;}',
             /* Fase 1 chiusura: comprimi altezza prima di restringersi in cerchio */
             '#etass-chat.etass-collapsing{max-height:68px!important;transition:max-height .35s cubic-bezier(.22,1,.36,1)!important;}',
             '#etass-chat.etass-collapsing #etass-chat-body,#etass-chat.etass-collapsing #etass-chat-footer,#etass-chat.etass-collapsing #etass-settings{display:none!important;}',
             /* Puntino status visibile solo quando minimizzato */
-            '#etass-mini-dot{display:none;position:absolute;top:4px;right:4px;width:14px;height:14px;border-radius:50%;border:2px solid #fff;z-index:1;pointer-events:none;transition:background .3s;}',
+            '#etass-mini-dot{display:none;position:absolute;top:2px;right:2px;width:12px;height:12px;border-radius:50%;z-index:1;pointer-events:none;transition:background .3s;}',
             '#etass-chat.etass-minimized #etass-mini-dot{display:block;}',
             '#etass-mini-dot.etass-mini-on{background:#4caf50;box-shadow:0 0 6px #4caf50;}',
             '#etass-mini-dot.etass-mini-off{background:#e53935;box-shadow:0 0 6px #e53935;}',
