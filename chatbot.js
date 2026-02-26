@@ -3,7 +3,7 @@
 //  Legge da window.__ETASS — espone chatBot su window.__ETASS.chatBot
 // ─────────────────────────────────────────────
 (function () {
-    var VERSION = 'v1.0.15';
+    var VERSION = 'v1.0.16';
     var E = window.__ETASS;
     var botEnabled     = E.botEnabled;
     var autoQuiz       = E.autoQuiz;
@@ -31,7 +31,7 @@
             '#etass-mini-dot.etass-mini-on{background:#4caf50;box-shadow:0 0 6px #4caf50;}',
             '#etass-mini-dot.etass-mini-off{background:#e53935;box-shadow:0 0 6px #e53935;}',
             '#etass-chat-header{display:flex;align-items:center;gap:10px;padding:13px 16px;background:#fff;border-bottom:1px solid #e0e4ea;cursor:pointer;user-select:none;}',
-            '#etass-chat.etass-minimized #etass-chat-header{padding:5px;border-bottom:none;justify-content:center;background:#fff;width:68px;height:68px;box-sizing:border-box;}',
+            '#etass-chat.etass-minimized #etass-chat-header{padding:5px;border-bottom:none;justify-content:center;background:transparent;width:68px;height:68px;box-sizing:border-box;}',
             '#etass-chat.etass-minimized .etass-hinfo,#etass-chat.etass-minimized .etass-dot-online{display:none;}',
             '#etass-chat.etass-minimized #etass-chat-body{display:none;}',
             '#etass-chat-header .etass-header-av{width:38px;height:38px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid #e0e4ea;background:#fff;}',
