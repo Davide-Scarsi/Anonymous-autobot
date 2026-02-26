@@ -3,7 +3,7 @@
 //  Legge da window.__ETASS — espone chatBot su window.__ETASS.chatBot
 // ─────────────────────────────────────────────
 (function () {
-    var VERSION = 'v1.0.1';
+    var VERSION = 'v1.0.2';
     var E = window.__ETASS;
     var botEnabled     = E.botEnabled;
     var autoQuiz       = E.autoQuiz;
@@ -29,6 +29,7 @@
             '#etass-chat-header .etass-hname{color:#1a1a2e;font-size:13.5px;font-weight:700;letter-spacing:.3px;}',
             '#etass-chat-header .etass-hsub{color:#999;font-size:11px;}',
             '#etass-chat-header .etass-dot-online{margin-left:auto;width:9px;height:9px;flex-shrink:0;background:#4caf50;border-radius:50%;box-shadow:0 0 6px #4caf50;}',
+            '#etass-chat-header .etass-dot-online.etass-dot-off{background:#e53935;box-shadow:0 0 6px #e53935;}',
             '#etass-chat-body{overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:10px;max-height:320px;background:#f5f7fa;}',
             '#etass-chat-body::-webkit-scrollbar{width:3px;}',
             '#etass-chat-body::-webkit-scrollbar-thumb{background:#d0d5de;border-radius:2px;}',
@@ -72,7 +73,7 @@
                     '<span class="etass-hname">Etass AI</span>' +
                     '<span class="etass-hsub">Assistente automatico</span>' +
                 '</div>' +
-                '<span class="etass-dot-online"></span>' +
+                '<span class="etass-dot-online' + (botEnabled ? '' : ' etass-dot-off') + '"></span>' +
             '</div>' +
             '<div id="etass-chat-body"></div>' +
             '<div id="etass-settings">' +
