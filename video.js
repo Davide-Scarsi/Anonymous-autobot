@@ -9,12 +9,13 @@
     var ANON_SRC       = E.ANON;
 
     // ── State tracking per toggle live ──
-    var overlayStyleEl = null;
-    var videoWrap      = null;
     var glitchRunning  = false;
     var skipAborted    = false;
     var player         = null;
     var iframeEl       = null;
+    var videoWrap      = null;
+    var glitchBox      = null;
+    var overlayStyleEl = null;
     var originalSetCurrentTime = null;
     var lastSeekedTo   = null;
     var seekTimestamp   = 0;
@@ -52,90 +53,15 @@
         iframeEl = document.querySelector('iframe');
         if (!iframeEl) return;
 
-        player = new Vimeo.Player(iframeEl);
-
-        // ── Navigazione prossima lezione (sempre attivo) ──
-        function getNextLessonUrl() {
-            const nextBtn = Array.from(document.querySelectorAll('a.ld-button')).find(function (a) {
-                return a.textContent.includes('Prossima');
-            });
-            if (nextBtn && nextBtn.href) return nextBtn.href;
-
-            const allLessons = Array.from(document.querySelectorAll('a.ld-lesson-item-preview-heading[href]'));
-            const currentUrl = window.location.href.split('?')[0].replace(/\/$/, '');
-            const currentIdx = allLessons.findIndex(function (a) {
-                return a.href.replace(/\/$/, '') === currentUrl;
-            });
-            if (currentIdx !== -1 && currentIdx + 1 < allLessons.length) {
-                return allLessons[currentIdx + 1].href;
-            }
-            return null;
-        }
-
-        const nextLessonUrl = getNextLessonUrl();
-        console.log('[Video] Prossima lezione URL:', nextLessonUrl);
-
-        player.on('ended', function () {
-            if (!E.AUTO_SKIP_VIDEO) {
-                console.log('[Video] ENDED — navigazione automatica disabilitata.');
-                return;
-            }
-            console.log('[Video] ENDED — attendo completamento piattaforma...');
-            setTimeout(function () {
-                if (nextLessonUrl) {
-                    console.log('[Video] Navigazione verso:', nextLessonUrl);
-                    window.location.href = nextLessonUrl;
-                } else {
-                    console.warn('[Video] Prossima lezione non trovata');
-                }
-            }, 3000);
-        });
-
-        // ── Registra modulo per toggle live ──
-        E.modules.video = { start: startBot, stop: stopBot };
-
-        if (E.botEnabled) {
-            startBot();
-        } else {
-            console.log('[Video] Bot disabilitato — video normale.');
-        }
-    }
-
-    // ── START: blur, overlay, glitch, skip ──────────────────
-    function startBot() {
-        skipAborted = false;
-        glitchRunning = true;
-        E.AUTO_SKIP_VIDEO = true;
-
-        applyVideoOverlay();
-
-        chatBot.addMessage('Stiamo saltando tutti i video, attendere...', 600);
-        trySkipVideo(0);
-    }
-
-    // ── STOP: rimuovi overlay, unmute ───────────────────────
-    function stopBot() {
-        skipAborted = true;
-        glitchRunning = false;
-        E.AUTO_SKIP_VIDEO = false;
-
-        removeVideoOverlay();
-
-        if (player) {
-            player.setVolume(1).catch(function () {});
-        }
-        console.log('[Video] Bot fermato — overlay rimosso.');
-    }
-
-    // ── Overlay + glitch ────────────────────────────────────
-    function applyVideoOverlay() {
-        if (!iframeEl) return;
-
+        // ── Wrap iframe una sola volta (prima di creare il Player) ──
+        // Il wrapper esiste sempre; blur + glitch si attivano solo con la classe .etass-video-active
         overlayStyleEl = document.createElement('style');
         overlayStyleEl.textContent =
             '.etass-video-wrap{position:relative;display:block;width:100%;height:100%;}' +
-            '.etass-video-wrap iframe{filter:blur(8px);pointer-events:none;display:block;width:100%;height:100%;}' +
-            '.etass-glitch-box{position:absolute;top:50%;left:50%;width:260px;height:260px;transform:translate(-50%,-50%);pointer-events:none;z-index:9999;}' +
+            '.etass-video-wrap.etass-video-active iframe{filter:blur(8px);pointer-events:none;}' +
+            '.etass-video-wrap iframe{display:block;width:100%;height:100%;}' +
+            '.etass-glitch-box{display:none;position:absolute;top:50%;left:50%;width:260px;height:260px;transform:translate(-50%,-50%);pointer-events:none;z-index:9999;}' +
+            '.etass-video-active .etass-glitch-box{display:block;}' +
             '.etass-glitch-box img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;}' +
             '.etass-glitch-layer{will-change:clip-path,transform,opacity;}';
         document.head.appendChild(overlayStyleEl);
@@ -147,10 +73,9 @@
         parent.insertBefore(videoWrap, iframeEl);
         videoWrap.appendChild(iframeEl);
 
-        // Glitch con 3 layer (base + 2 copie RGB)
-        var box = document.createElement('div');
-        box.className = 'etass-glitch-box';
-
+        // Glitch box (nascosta di default, mostrata via CSS .etass-video-active)
+        glitchBox = document.createElement('div');
+        glitchBox.className = 'etass-glitch-box';
         var layers = [];
         for (var li = 0; li < 3; li++) {
             var img = document.createElement('img');
@@ -159,12 +84,12 @@
             img.className = 'etass-glitch-layer';
             if (li === 1) { img.style.mixBlendMode = 'multiply'; img.style.opacity = '0'; }
             if (li === 2) { img.style.mixBlendMode = 'multiply'; img.style.opacity = '0'; }
-            box.appendChild(img);
+            glitchBox.appendChild(img);
             layers.push(img);
         }
-        videoWrap.appendChild(box);
+        videoWrap.appendChild(glitchBox);
 
-        // ── JS glitch engine ──
+        // ── Glitch engine (gira solo quando glitchRunning == true) ──
         var STATE_IDLE = 0, STATE_BURST = 1;
         var state = STATE_IDLE;
         var burstEnd = 0;
@@ -185,7 +110,15 @@
         }
 
         function glitchFrame() {
-            if (!glitchRunning) return; // ferma il loop rAF
+            if (!glitchRunning) {
+                // Reset layers pulito quando il bot si ferma
+                layers[0].style.clipPath = '';
+                layers[0].style.transform = '';
+                layers[0].style.filter = '';
+                layers[1].style.opacity = '0';
+                layers[2].style.opacity = '0';
+                return;
+            }
 
             var now = Date.now();
 
@@ -239,23 +172,81 @@
 
             requestAnimationFrame(glitchFrame);
         }
-        requestAnimationFrame(glitchFrame);
-    }
 
-    function removeVideoOverlay() {
-        // Rimuovi style di blur
-        if (overlayStyleEl && overlayStyleEl.parentNode) {
-            overlayStyleEl.parentNode.removeChild(overlayStyleEl);
-            overlayStyleEl = null;
-        }
-        // Riporta l'iframe fuori dal wrapper e rimuovi il wrapper
-        if (videoWrap && iframeEl) {
-            var parent = videoWrap.parentNode;
-            if (parent) {
-                parent.insertBefore(iframeEl, videoWrap);
-                parent.removeChild(videoWrap);
+        // ── Crea il Player DOPO aver wrappato l'iframe ──
+        player = new Vimeo.Player(iframeEl);
+
+        // ── Navigazione prossima lezione (sempre attivo) ──
+        function getNextLessonUrl() {
+            const nextBtn = Array.from(document.querySelectorAll('a.ld-button')).find(function (a) {
+                return a.textContent.includes('Prossima');
+            });
+            if (nextBtn && nextBtn.href) return nextBtn.href;
+
+            const allLessons = Array.from(document.querySelectorAll('a.ld-lesson-item-preview-heading[href]'));
+            const currentUrl = window.location.href.split('?')[0].replace(/\/$/, '');
+            const currentIdx = allLessons.findIndex(function (a) {
+                return a.href.replace(/\/$/, '') === currentUrl;
+            });
+            if (currentIdx !== -1 && currentIdx + 1 < allLessons.length) {
+                return allLessons[currentIdx + 1].href;
             }
-            videoWrap = null;
+            return null;
+        }
+
+        const nextLessonUrl = getNextLessonUrl();
+        console.log('[Video] Prossima lezione URL:', nextLessonUrl);
+
+        player.on('ended', function () {
+            if (!E.AUTO_SKIP_VIDEO) {
+                console.log('[Video] ENDED — navigazione automatica disabilitata.');
+                return;
+            }
+            console.log('[Video] ENDED — attendo completamento piattaforma...');
+            setTimeout(function () {
+                if (nextLessonUrl) {
+                    console.log('[Video] Navigazione verso:', nextLessonUrl);
+                    window.location.href = nextLessonUrl;
+                } else {
+                    console.warn('[Video] Prossima lezione non trovata');
+                }
+            }, 3000);
+        });
+
+        // ── START: abilita blur/glitch + skip ──────────────────
+        function startBot() {
+            skipAborted = false;
+            glitchRunning = true;
+            E.AUTO_SKIP_VIDEO = true;
+
+            videoWrap.classList.add('etass-video-active');
+            requestAnimationFrame(glitchFrame);
+
+            chatBot.addMessage('Stiamo saltando tutti i video, attendere...', 600);
+            trySkipVideo(0);
+        }
+
+        // ── STOP: rimuovi blur/glitch, unmute ──────────────────
+        function stopBot() {
+            skipAborted = true;
+            glitchRunning = false;
+            E.AUTO_SKIP_VIDEO = false;
+
+            videoWrap.classList.remove('etass-video-active');
+
+            if (player) {
+                player.setVolume(1).catch(function () {});
+            }
+            console.log('[Video] Bot fermato — overlay disattivato.');
+        }
+
+        // ── Registra modulo per toggle live ──
+        E.modules.video = { start: startBot, stop: stopBot };
+
+        if (E.botEnabled) {
+            startBot();
+        } else {
+            console.log('[Video] Bot disabilitato — video normale.');
         }
     }
 
@@ -290,7 +281,6 @@
         }).then(function (seconds) {
             if (skipAborted) return;
             console.log('[Video] Portato a:', seconds);
-            // Verifica che il seek sia andato a buon fine
             setTimeout(function () {
                 if (skipAborted) return;
                 player.getCurrentTime().then(function (t) {
