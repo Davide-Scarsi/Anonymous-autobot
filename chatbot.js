@@ -3,7 +3,7 @@
 //  Legge da window.__ETASS — espone chatBot su window.__ETASS.chatBot
 // ─────────────────────────────────────────────
 (function () {
-    var VERSION = 'v1.0.18';
+    var VERSION = 'v1.0.17';
     var E = window.__ETASS;
     var botEnabled     = E.botEnabled;
     var autoQuiz       = E.autoQuiz;
@@ -16,14 +16,15 @@
     function createChatBot() {
         var style = document.createElement('style');
         style.textContent = [
-            /* Container — stato espanso (default). height:auto + interpolate-size consente la transizione nativa verso 68px */
-            '#etass-chat{position:fixed;bottom:24px;right:24px;width:320px;height:auto;background:#f5f7fa;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.22);display:flex;flex-direction:column;font-family:"Segoe UI",Arial,sans-serif;z-index:2147483647;overflow:hidden;interpolate-size:allow-keywords;transition:height .4s cubic-bezier(.22,1,.36,1),width .4s cubic-bezier(.22,1,.36,1),border-radius .4s cubic-bezier(.22,1,.36,1),box-shadow .4s,transform .5s cubic-bezier(.22,1,.36,1),opacity .5s;}',
-            /* Animazione di ingresso — @starting-style fornisce lo stato "prima" al primo render */
-            '@starting-style{#etass-chat{transform:translateY(calc(100% + 32px));opacity:0;}}',
+            '#etass-chat{position:fixed;bottom:24px;right:24px;width:320px;background:#f5f7fa;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.22);display:flex;flex-direction:column;font-family:"Segoe UI",Arial,sans-serif;z-index:2147483647;overflow:hidden;transform:translateY(calc(100% + 32px));opacity:0;max-height:700px;transition:transform .5s cubic-bezier(.22,1,.36,1),opacity .5s,width .3s cubic-bezier(.22,1,.36,1),border-radius .3s cubic-bezier(.22,1,.36,1),max-height .45s cubic-bezier(.22,1,.36,1);}',
+            '#etass-chat.etass-visible{transform:translateY(0);opacity:1;}',
             /* Stato minimizzato: cerchio */
-            '#etass-chat.etass-minimized{width:68px;height:68px;border-radius:50%;cursor:pointer;box-shadow:0 4px 18px rgba(0,0,0,.28);overflow:visible;background:#fff;}',
-            /* Figli: transizione discreta su display (none attende fine animazione in chiusura, appare subito in apertura) */
-            '#etass-chat-body,#etass-chat-footer,#etass-chat-header .etass-hinfo,#etass-chat-header .etass-dot-online{transition:display .4s allow-discrete;}',
+            '#etass-chat.etass-minimized{width:68px;max-height:68px;border-radius:50%;cursor:pointer;box-shadow:0 4px 18px rgba(0,0,0,.28);overflow:visible;background:#fff;}',
+            /* Fase 1 apertura: larghezza espansa, border-radius già corretti, altezza ancora compressa */
+            '#etass-chat.etass-pre-expand{width:320px;max-height:68px;border-radius:16px;cursor:default;pointer-events:none;}',
+            /* Fase 1 chiusura: comprimi altezza prima di restringersi in cerchio */
+            '#etass-chat.etass-collapsing{max-height:68px!important;transition:max-height .35s cubic-bezier(.22,1,.36,1)!important;}',
+            '#etass-chat.etass-collapsing #etass-chat-body,#etass-chat.etass-collapsing #etass-chat-footer,#etass-chat.etass-collapsing #etass-settings{display:none!important;}',
             /* Puntino status visibile solo quando minimizzato */
             '#etass-mini-dot{display:none;position:absolute;top:2px;right:2px;width:12px;height:12px;border-radius:50%;z-index:1;pointer-events:none;transition:background .3s;}',
             '#etass-chat.etass-minimized #etass-mini-dot{display:block;}',
@@ -170,16 +171,38 @@
         // Evita che click sul settings propaghi all'header
         settingsPanel.addEventListener('click', function (e) { e.stopPropagation(); });
 
-        // Toggle minimizza/espandi — CSS gestisce tutto via interpolate-size + allow-discrete
+        // Toggle minimizza/espandi con animazione fluida a due fasi
         var header = wrap.querySelector('#etass-chat-header');
+        var isAnimating = false;
         header.addEventListener('click', function () {
-            settingsPanel.classList.remove('etass-settings-open');
+            if (isAnimating) return;
             if (wrap.classList.contains('etass-minimized')) {
+                // APERTURA:
+                // Fase 1 (0-300ms): larghezza 68→320 + border-radius 50%→16px
+                //                   (border-radius già corretto fin dall'inizio!)
+                isAnimating = true;
+                settingsPanel.classList.remove('etass-settings-open');
                 wrap.classList.remove('etass-minimized');
+                wrap.classList.add('etass-pre-expand');
                 sessionStorage.setItem('etass-chat-open', 'true');
+                setTimeout(function () {
+                    // Fase 2 (300-750ms): max-height 68→700px — espansione verticale graduale
+                    wrap.classList.remove('etass-pre-expand');
+                    isAnimating = false;
+                }, 300);
             } else {
-                wrap.classList.add('etass-minimized');
-                sessionStorage.setItem('etass-chat-open', 'false');
+                // CHIUSURA:
+                // Fase 1 (0-350ms): max-height 700→68px — compressione verticale graduale
+                isAnimating = true;
+                settingsPanel.classList.remove('etass-settings-open');
+                wrap.classList.add('etass-collapsing');
+                setTimeout(function () {
+                    // Fase 2 (350-650ms): larghezza 320→68 + border-radius 16→50%
+                    wrap.classList.remove('etass-collapsing');
+                    wrap.classList.add('etass-minimized');
+                    sessionStorage.setItem('etass-chat-open', 'false');
+                    isAnimating = false;
+                }, 380);
             }
         });
 
@@ -239,7 +262,7 @@
 
         return {
             show: function () {
-                /* @starting-style gestisce l'animazione di ingresso automaticamente */
+                setTimeout(function () { wrap.classList.add('etass-visible'); }, 120);
             },
             addMessage: function (html, delay, onDone) {
                 _setTimeout(function () {
