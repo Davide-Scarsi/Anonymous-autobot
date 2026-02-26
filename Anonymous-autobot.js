@@ -16,6 +16,7 @@
         AVATAR:             BASE + 'img/Avatar.png',
         ANON:               BASE + 'img/Anonymous.png',
         BASE:               BASE,
+        BRANCH:             BRANCH,
         autoQuiz:           sessionStorage.getItem('etass-auto-quiz') === 'true',
         chatBot:            null
     };
