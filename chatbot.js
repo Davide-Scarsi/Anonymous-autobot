@@ -119,6 +119,7 @@
         toggleAutoQuiz.addEventListener('change', function () {
             sessionStorage.setItem('etass-auto-quiz', toggleAutoQuiz.checked ? 'true' : 'false');
             E.autoQuiz = toggleAutoQuiz.checked;
+            console.log('[Etass] Quiz automatico:', toggleAutoQuiz.checked ? 'ATTIVATO' : 'DISATTIVATO');
         });
 
         // Evita che click sul settings propaghi all'header
