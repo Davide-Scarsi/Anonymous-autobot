@@ -3,7 +3,7 @@
 //  Legge da window.__ETASS — espone chatBot su window.__ETASS.chatBot
 // ─────────────────────────────────────────────
 (function () {
-    var VERSION = 'v1.0.16';
+    var VERSION = 'v1.0.17';
     var E = window.__ETASS;
     var botEnabled     = E.botEnabled;
     var autoQuiz       = E.autoQuiz;
@@ -19,7 +19,7 @@
             '#etass-chat{position:fixed;bottom:24px;right:24px;width:320px;background:#f5f7fa;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.22);display:flex;flex-direction:column;font-family:"Segoe UI",Arial,sans-serif;z-index:2147483647;overflow:hidden;transform:translateY(calc(100% + 32px));opacity:0;max-height:700px;transition:transform .5s cubic-bezier(.22,1,.36,1),opacity .5s,width .3s cubic-bezier(.22,1,.36,1),border-radius .3s cubic-bezier(.22,1,.36,1),max-height .45s cubic-bezier(.22,1,.36,1);}',
             '#etass-chat.etass-visible{transform:translateY(0);opacity:1;}',
             /* Stato minimizzato: cerchio */
-            '#etass-chat.etass-minimized{width:68px;max-height:68px;border-radius:50%;cursor:pointer;box-shadow:0 4px 18px rgba(0,0,0,.28);overflow:visible;}',
+            '#etass-chat.etass-minimized{width:68px;max-height:68px;border-radius:50%;cursor:pointer;box-shadow:0 4px 18px rgba(0,0,0,.28);overflow:visible;background:#fff;}',
             /* Fase 1 apertura: larghezza espansa, border-radius già corretti, altezza ancora compressa */
             '#etass-chat.etass-pre-expand{width:320px;max-height:68px;border-radius:16px;cursor:default;pointer-events:none;}',
             /* Fase 1 chiusura: comprimi altezza prima di restringersi in cerchio */
@@ -35,7 +35,7 @@
             '#etass-chat.etass-minimized .etass-hinfo,#etass-chat.etass-minimized .etass-dot-online{display:none;}',
             '#etass-chat.etass-minimized #etass-chat-body{display:none;}',
             '#etass-chat-header .etass-header-av{width:38px;height:38px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid #e0e4ea;background:#fff;}',
-            '#etass-chat.etass-minimized #etass-chat-header .etass-header-av{width:58px;height:58px;border:3px solid #e0e4ea;}',
+            '#etass-chat.etass-minimized #etass-chat-header .etass-header-av{width:58px;height:58px;border:3px solid #e0e4ea;background:#fff;}',
             '#etass-chat-header .etass-hinfo{display:flex;flex-direction:column;min-width:0;}',
             '#etass-chat-header .etass-hname{color:#1a1a2e;font-size:13.5px;font-weight:700;letter-spacing:.3px;}',
             '#etass-chat-header .etass-hsub{color:#999;font-size:11px;}',
