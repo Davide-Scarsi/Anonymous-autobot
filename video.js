@@ -215,21 +215,55 @@
             return;
         }
 
-        player.ready().then(function () {
-            return player.play();
-        }).then(function () {
-            return new Promise(function (resolve) { setTimeout(resolve, 300); });
-        }).then(function () {
-            return player.getDuration();
-        }).then(function (duration) {
-            lastSeekedTo = duration - 1;
-            seekTimestamp = Date.now() + 99999;
-            return originalSetCurrentTime.call(new Vimeo.Player(iframe), duration - 1);
-        }).then(function (seconds) {
-            console.log('[Video] Portato a:', seconds);
-        }).catch(function (err) {
-            console.warn('[Video] Errore:', err);
-        });
+        var MAX_SKIP_RETRIES = 3;
+        var skipAttempt = 0;
+
+        function trySkipVideo() {
+            skipAttempt++;
+            console.log('[Video] Tentativo skip #' + skipAttempt + '...');
+
+            player.ready().then(function () {
+                return player.play();
+            }).then(function () {
+                return new Promise(function (resolve) { setTimeout(resolve, 300); });
+            }).then(function () {
+                return player.getDuration();
+            }).then(function (duration) {
+                lastSeekedTo = duration - 1;
+                seekTimestamp = Date.now() + 99999;
+                return originalSetCurrentTime.call(new Vimeo.Player(iframe), duration - 1);
+            }).then(function (seconds) {
+                console.log('[Video] Portato a:', seconds);
+                // Verifica che il seek sia andato a buon fine
+                setTimeout(function () {
+                    player.getCurrentTime().then(function (t) {
+                        player.getDuration().then(function (d) {
+                            if (t < d - 5) {
+                                console.warn('[Video] Skip non riuscito (posizione: ' + t.toFixed(1) + '/' + d.toFixed(1) + ')');
+                                if (skipAttempt < MAX_SKIP_RETRIES) {
+                                    chatBot.addMessage('⚠️ Skip fallito, riprovo... (' + skipAttempt + '/' + MAX_SKIP_RETRIES + ')', 0);
+                                    setTimeout(trySkipVideo, 1500);
+                                } else {
+                                    chatBot.addMessage('⚠️ Skip fallito dopo ' + MAX_SKIP_RETRIES + ' tentativi.', 0);
+                                }
+                            } else {
+                                console.log('[Video] Skip confermato ✅');
+                            }
+                        });
+                    });
+                }, 1000);
+            }).catch(function (err) {
+                console.warn('[Video] Errore skip:', err);
+                if (skipAttempt < MAX_SKIP_RETRIES) {
+                    chatBot.addMessage('⚠️ Errore skip, riprovo... (' + skipAttempt + '/' + MAX_SKIP_RETRIES + ')', 0);
+                    setTimeout(trySkipVideo, 1500);
+                } else {
+                    chatBot.addMessage('⚠️ Skip fallito dopo ' + MAX_SKIP_RETRIES + ' tentativi.', 0);
+                }
+            });
+        }
+
+        trySkipVideo();
     }
 
     initVideo();
