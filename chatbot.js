@@ -3,7 +3,7 @@
 //  Legge da window.__ETASS — espone chatBot su window.__ETASS.chatBot
 // ─────────────────────────────────────────────
 (function () {
-    var VERSION = 'v1.0.11';
+    var VERSION = 'v1.0.12';
     var E = window.__ETASS;
     var botEnabled     = E.botEnabled;
     var autoQuiz       = E.autoQuiz;
@@ -19,6 +19,13 @@
             '#etass-chat{position:fixed;bottom:24px;right:24px;width:320px;background:#f5f7fa;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.22);display:flex;flex-direction:column;font-family:"Segoe UI",Arial,sans-serif;z-index:2147483647;overflow:hidden;transform:translateY(calc(100% + 32px));opacity:0;transition:transform .5s cubic-bezier(.22,1,.36,1),opacity .5s,width .35s cubic-bezier(.22,1,.36,1),height .35s cubic-bezier(.22,1,.36,1),border-radius .35s;}',
             '#etass-chat.etass-visible{transform:translateY(0);opacity:1;}',
             '#etass-chat.etass-minimized{width:68px;height:68px;border-radius:50%;cursor:pointer;box-shadow:0 4px 18px rgba(0,0,0,.28);}',
+            '#etass-chat.etass-expand-h{width:320px;height:68px;border-radius:34px;overflow:hidden;cursor:default;}',
+            '#etass-chat.etass-expand-h #etass-chat-body,#etass-chat.etass-expand-h #etass-chat-footer,#etass-chat.etass-expand-h #etass-settings{display:none;}',
+            '#etass-chat.etass-expand-h #etass-chat-header{pointer-events:none;}',
+            '#etass-chat.etass-collapse-h{width:68px;height:68px;border-radius:50%;overflow:hidden;cursor:pointer;}',
+            '#etass-chat.etass-collapse-h #etass-chat-body,#etass-chat.etass-collapse-h #etass-chat-footer,#etass-chat.etass-collapse-h #etass-settings,#etass-chat.etass-collapse-h .etass-hinfo,#etass-chat.etass-collapse-h .etass-dot-online{display:none;}',
+            '#etass-chat.etass-collapse-h #etass-chat-header{padding:5px;border-bottom:none;justify-content:center;width:68px;height:68px;box-sizing:border-box;}',
+            '#etass-chat.etass-collapse-h #etass-chat-header .etass-header-av{width:58px;height:58px;border:3px solid #e0e4ea;}',
             '#etass-chat-header{display:flex;align-items:center;gap:10px;padding:13px 16px;background:#fff;border-bottom:1px solid #e0e4ea;cursor:pointer;user-select:none;}',
             '#etass-chat.etass-minimized #etass-chat-header{padding:5px;border-bottom:none;justify-content:center;background:#fff;width:68px;height:68px;box-sizing:border-box;}',
             '#etass-chat.etass-minimized .etass-hinfo,#etass-chat.etass-minimized .etass-dot-online{display:none;}',
@@ -155,10 +162,32 @@
         // Evita che click sul settings propaghi all'header
         settingsPanel.addEventListener('click', function (e) { e.stopPropagation(); });
 
-        // Toggle minimizza/espandi cliccando l'header
+        // Toggle minimizza/espandi con animazione a due fasi
         var header = wrap.querySelector('#etass-chat-header');
+        var isAnimating = false;
         header.addEventListener('click', function () {
-            wrap.classList.toggle('etass-minimized');
+            if (isAnimating) return;
+            if (wrap.classList.contains('etass-minimized')) {
+                // ESPANDI: fase 1 — larghezza (cerchio → pillola)
+                isAnimating = true;
+                wrap.classList.remove('etass-minimized');
+                wrap.classList.add('etass-expand-h');
+                setTimeout(function () {
+                    // fase 2 — altezza (pillola → chat completa)
+                    wrap.classList.remove('etass-expand-h');
+                    isAnimating = false;
+                }, 350);
+            } else {
+                // MINIMIZZA: fase 1 — altezza (chat → pillola)
+                isAnimating = true;
+                wrap.classList.add('etass-collapse-h');
+                setTimeout(function () {
+                    // fase 2 — larghezza (pillola → cerchio)
+                    wrap.classList.remove('etass-collapse-h');
+                    wrap.classList.add('etass-minimized');
+                    isAnimating = false;
+                }, 350);
+            }
         });
 
         var body = wrap.querySelector('#etass-chat-body');
