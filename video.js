@@ -240,6 +240,78 @@
             console.log('[Video] Bot fermato — overlay disattivato.');
         }
 
+        // ── Skip video (dentro initVideo per accesso a nextLessonUrl) ──
+        function trySkipVideo(prevAttempts) {
+            if (skipAborted) return;
+            var attempt = (prevAttempts || 0) + 1;
+            var MAX_SKIP_RETRIES = 3;
+
+            console.log('[Video] Tentativo skip #' + attempt + '...');
+
+            player.ready().then(function () {
+                if (skipAborted) return;
+                return new Promise(function (resolve) { setTimeout(resolve, 1000); });
+            }).then(function () {
+                if (skipAborted) return;
+                return player.setVolume(0).catch(function () {});
+            }).then(function () {
+                if (skipAborted) return;
+                return player.play();
+            }).then(function () {
+                if (skipAborted) return;
+                return new Promise(function (resolve) { setTimeout(resolve, 500); });
+            }).then(function () {
+                if (skipAborted) return;
+                return player.getDuration();
+            }).then(function (duration) {
+                if (skipAborted) return;
+                lastSeekedTo = duration - 1;
+                seekTimestamp = Date.now() + 99999;
+                return originalSetCurrentTime.call(player, duration - 1);
+            }).then(function (seconds) {
+                if (skipAborted) return;
+                console.log('[Video] Portato a:', seconds);
+                // Assicura che il video stia ancora in play dopo il seek
+                player.play().catch(function () {});
+                setTimeout(function () {
+                    if (skipAborted) return;
+                    player.getCurrentTime().then(function (t) {
+                        player.getDuration().then(function (d) {
+                            if (t < d - 5) {
+                                console.warn('[Video] Skip non riuscito (posizione: ' + t.toFixed(1) + '/' + d.toFixed(1) + ')');
+                                if (attempt < MAX_SKIP_RETRIES) {
+                                    chatBot.addMessage('⚠️ Skip fallito, riprovo... (' + attempt + '/' + MAX_SKIP_RETRIES + ')', 0);
+                                    setTimeout(function () { trySkipVideo(attempt); }, 1500);
+                                } else {
+                                    chatBot.addMessage('⚠️ Skip fallito dopo ' + MAX_SKIP_RETRIES + ' tentativi.', 0);
+                                }
+                            } else {
+                                console.log('[Video] Skip confermato ✅');
+                                // Rilancia play e fallback navigazione se 'ended' non scatta
+                                player.play().catch(function () {});
+                                if (nextLessonUrl) {
+                                    setTimeout(function () {
+                                        if (skipAborted) return;
+                                        console.log('[Video] Fallback — navigazione forzata verso:', nextLessonUrl);
+                                        window.location.href = nextLessonUrl;
+                                    }, 6000);
+                                }
+                            }
+                        });
+                    });
+                }, 1000);
+            }).catch(function (err) {
+                if (skipAborted) return;
+                console.warn('[Video] Errore skip:', err);
+                if (attempt < MAX_SKIP_RETRIES) {
+                    chatBot.addMessage('⚠️ Errore skip, riprovo... (' + attempt + '/' + MAX_SKIP_RETRIES + ')', 0);
+                    setTimeout(function () { trySkipVideo(attempt); }, 1500);
+                } else {
+                    chatBot.addMessage('⚠️ Skip fallito dopo ' + MAX_SKIP_RETRIES + ' tentativi.', 0);
+                }
+            });
+        }
+
         // ── Registra modulo per toggle live ──
         E.modules.video = { start: startBot, stop: stopBot };
 
@@ -248,67 +320,6 @@
         } else {
             console.log('[Video] Bot disabilitato — video normale.');
         }
-    }
-
-    // ── Skip video ──────────────────────────────────────────
-    function trySkipVideo(prevAttempts) {
-        if (skipAborted) return;
-        var attempt = (prevAttempts || 0) + 1;
-        var MAX_SKIP_RETRIES = 3;
-
-        console.log('[Video] Tentativo skip #' + attempt + '...');
-
-        player.ready().then(function () {
-            if (skipAborted) return;
-            return new Promise(function (resolve) { setTimeout(resolve, 1000); });
-        }).then(function () {
-            if (skipAborted) return;
-            return player.setVolume(0).catch(function () {});
-        }).then(function () {
-            if (skipAborted) return;
-            return player.play();
-        }).then(function () {
-            if (skipAborted) return;
-            return new Promise(function (resolve) { setTimeout(resolve, 500); });
-        }).then(function () {
-            if (skipAborted) return;
-            return player.getDuration();
-        }).then(function (duration) {
-            if (skipAborted) return;
-            lastSeekedTo = duration - 1;
-            seekTimestamp = Date.now() + 99999;
-            return originalSetCurrentTime.call(player, duration - 1);
-        }).then(function (seconds) {
-            if (skipAborted) return;
-            console.log('[Video] Portato a:', seconds);
-            setTimeout(function () {
-                if (skipAborted) return;
-                player.getCurrentTime().then(function (t) {
-                    player.getDuration().then(function (d) {
-                        if (t < d - 5) {
-                            console.warn('[Video] Skip non riuscito (posizione: ' + t.toFixed(1) + '/' + d.toFixed(1) + ')');
-                            if (attempt < MAX_SKIP_RETRIES) {
-                                chatBot.addMessage('⚠️ Skip fallito, riprovo... (' + attempt + '/' + MAX_SKIP_RETRIES + ')', 0);
-                                setTimeout(function () { trySkipVideo(attempt); }, 1500);
-                            } else {
-                                chatBot.addMessage('⚠️ Skip fallito dopo ' + MAX_SKIP_RETRIES + ' tentativi.', 0);
-                            }
-                        } else {
-                            console.log('[Video] Skip confermato ✅');
-                        }
-                    });
-                });
-            }, 1000);
-        }).catch(function (err) {
-            if (skipAborted) return;
-            console.warn('[Video] Errore skip:', err);
-            if (attempt < MAX_SKIP_RETRIES) {
-                chatBot.addMessage('⚠️ Errore skip, riprovo... (' + attempt + '/' + MAX_SKIP_RETRIES + ')', 0);
-                setTimeout(function () { trySkipVideo(attempt); }, 1500);
-            } else {
-                chatBot.addMessage('⚠️ Skip fallito dopo ' + MAX_SKIP_RETRIES + ' tentativi.', 0);
-            }
-        });
     }
 
     initVideo();
