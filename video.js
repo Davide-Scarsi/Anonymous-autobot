@@ -251,23 +251,27 @@
 
             console.log('[Video] Tentativo skip #' + attempt + ' (gen ' + gen + ')...');
 
-            player.ready().then(function () {
-                if (gen !== skipGeneration) return;
-                return new Promise(function (resolve) { setTimeout(resolve, 1000); });
+            // Fase 1: mute (non blocca mai)
+            player.setVolume(0).catch(function () {}).then(function () {
+                if (gen !== skipGeneration) { console.log('[Video] gen stale @mute'); return; }
+                console.log('[Video] Mute ok');
+                // Fase 2: play — con fallback se il browser rifiuta
+                return player.play().catch(function (err) {
+                    console.warn('[Video] play() rifiutato:', err.name || err, '— riprovo con reset a 0');
+                    return originalSetCurrentTime.call(player, 0).then(function () {
+                        return player.play();
+                    });
+                });
             }).then(function () {
-                if (gen !== skipGeneration) return;
-                return player.setVolume(0).catch(function () {});
-            }).then(function () {
-                if (gen !== skipGeneration) return;
-                return player.play();
-            }).then(function () {
-                if (gen !== skipGeneration) return;
+                if (gen !== skipGeneration) { console.log('[Video] gen stale @play'); return; }
+                console.log('[Video] Play ok, attendo stabilizzazione...');
                 return new Promise(function (resolve) { setTimeout(resolve, 500); });
             }).then(function () {
                 if (gen !== skipGeneration) return;
                 return player.getDuration();
             }).then(function (duration) {
                 if (gen !== skipGeneration) return;
+                console.log('[Video] Durata:', duration, '— seek a', (duration - 1).toFixed(1));
                 lastSeekedTo = duration - 1;
                 seekTimestamp = Date.now() + 99999;
                 return originalSetCurrentTime.call(player, duration - 1);
