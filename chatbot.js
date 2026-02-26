@@ -3,7 +3,7 @@
 //  Legge da window.__ETASS — espone chatBot su window.__ETASS.chatBot
 // ─────────────────────────────────────────────
 (function () {
-    var VERSION = 'v1.0.13';
+    var VERSION = 'v1.0.14';
     var E = window.__ETASS;
     var botEnabled     = E.botEnabled;
     var autoQuiz       = E.autoQuiz;
@@ -25,6 +25,11 @@
             /* Fase 1 chiusura: comprimi altezza prima di restringersi in cerchio */
             '#etass-chat.etass-collapsing{max-height:68px!important;transition:max-height .35s cubic-bezier(.22,1,.36,1)!important;}',
             '#etass-chat.etass-collapsing #etass-chat-body,#etass-chat.etass-collapsing #etass-chat-footer,#etass-chat.etass-collapsing #etass-settings{display:none!important;}',
+            /* Puntino status visibile solo quando minimizzato */
+            '#etass-mini-dot{display:none;position:absolute;top:4px;right:4px;width:14px;height:14px;border-radius:50%;border:2px solid #fff;z-index:1;pointer-events:none;transition:background .3s;}',
+            '#etass-chat.etass-minimized #etass-mini-dot{display:block;}',
+            '#etass-mini-dot.etass-mini-on{background:#4caf50;box-shadow:0 0 6px #4caf50;}',
+            '#etass-mini-dot.etass-mini-off{background:#e53935;box-shadow:0 0 6px #e53935;}',
             '#etass-chat-header{display:flex;align-items:center;gap:10px;padding:13px 16px;background:#fff;border-bottom:1px solid #e0e4ea;cursor:pointer;user-select:none;}',
             '#etass-chat.etass-minimized #etass-chat-header{padding:5px;border-bottom:none;justify-content:center;background:#fff;width:68px;height:68px;box-sizing:border-box;}',
             '#etass-chat.etass-minimized .etass-hinfo,#etass-chat.etass-minimized .etass-dot-online{display:none;}',
@@ -81,6 +86,7 @@
                 '</div>' +
                 '<span class="etass-dot-online' + (botEnabled ? '' : ' etass-dot-off') + '"></span>' +
             '</div>' +
+            '<span id="etass-mini-dot" class="' + (botEnabled ? 'etass-mini-on' : 'etass-mini-off') + '"></span>' +
             '<div id="etass-chat-body"></div>' +
             '<div id="etass-settings">' +
                 '<div class="etass-settings-row">' +
@@ -130,11 +136,15 @@
                 E.autoQuiz = false;
             }
 
-            // Aggiorna indicatore stato (dot)
+            // Aggiorna indicatore stato (dot header + dot mini)
             var dot = wrap.querySelector('.etass-dot-online');
             if (dot) {
                 if (enabled) dot.classList.remove('etass-dot-off');
                 else dot.classList.add('etass-dot-off');
+            }
+            var miniDot = wrap.querySelector('#etass-mini-dot');
+            if (miniDot) {
+                miniDot.className = enabled ? 'etass-mini-on' : 'etass-mini-off';
             }
 
             // Toggle moduli attivi senza reload
@@ -174,6 +184,7 @@
                 settingsPanel.classList.remove('etass-settings-open');
                 wrap.classList.remove('etass-minimized');
                 wrap.classList.add('etass-pre-expand');
+                sessionStorage.setItem('etass-chat-open', 'true');
                 setTimeout(function () {
                     // Fase 2 (300-750ms): max-height 68→700px — espansione verticale graduale
                     wrap.classList.remove('etass-pre-expand');
@@ -189,6 +200,7 @@
                     // Fase 2 (350-650ms): larghezza 320→68 + border-radius 16→50%
                     wrap.classList.remove('etass-collapsing');
                     wrap.classList.add('etass-minimized');
+                    sessionStorage.setItem('etass-chat-open', 'false');
                     isAnimating = false;
                 }, 380);
             }
@@ -295,12 +307,16 @@
     var chatBot = createChatBot();
     E.chatBot = chatBot;
 
-    // Mostra stato bot nella chat
+    // Mostra stato bot nella chat — ripristina stato aperto/chiuso
+    var wasOpen = sessionStorage.getItem('etass-chat-open');
     chatBot.show();
     if (botEnabled) {
         chatBot.addMessage('🟢 <b>Bot abilitato</b> — automazione attiva.', 300);
     } else {
         chatBot.addMessage('🔴 <b>Bot disabilitato</b> — automazione non attiva.', 300);
+    }
+    // Se era chiuso OPPURE è la prima visita con bot disabilitato → minimizza
+    if (wasOpen === 'false' || (wasOpen === null && !botEnabled)) {
         var chatWrap = document.querySelector('#etass-chat');
         if (chatWrap) chatWrap.classList.add('etass-minimized');
     }
