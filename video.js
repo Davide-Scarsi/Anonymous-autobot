@@ -268,6 +268,30 @@
             console.log('[Video] Bot fermato — overlay disattivato.');
         }
 
+        // ── Helper: wrappa qualsiasi promise Vimeo con timeout ──
+        // Se la promise non risolve/rifiuta entro `ms`, risolve con `fallback`
+        function vimeoCall(promise, ms, label, fallback) {
+            return new Promise(function (resolve) {
+                var done = false;
+                setTimeout(function () {
+                    if (!done) {
+                        done = true;
+                        console.warn('[Video] ⏱ Timeout ' + ms + 'ms su ' + label + ' — procedo');
+                        resolve(fallback);
+                    }
+                }, ms);
+                promise.then(function (val) {
+                    if (!done) { done = true; resolve(val); }
+                }).catch(function (err) {
+                    if (!done) {
+                        done = true;
+                        console.warn('[Video] ' + label + ' errore:', err.name || err, '— procedo');
+                        resolve(fallback);
+                    }
+                });
+            });
+        }
+
         // ── Skip video (dentro initVideo per accesso a getNextLessonUrl) ──
         function trySkipVideo(prevAttempts, gen) {
             if (gen !== skipGeneration) return;
@@ -276,64 +300,61 @@
 
             console.log('[Video] Tentativo skip #' + attempt + ' (gen ' + gen + ')...');
 
-            // Fase 1: mute (non blocca mai)
-            player.setVolume(0).catch(function () {}).then(function () {
+            // Fase 1: mute
+            vimeoCall(player.setVolume(0), 2000, 'setVolume(0)').then(function () {
                 if (gen !== skipGeneration) { console.log('[Video] gen stale @mute'); return; }
                 console.log('[Video] Mute ok');
-                // Fase 2: play — solo se in pausa; timeout 3s di sicurezza
-                return new Promise(function (playResolve) {
-                    var done = false;
-                    function finish() { if (!done) { done = true; playResolve(); } }
-                    // Safety: se play() non risolve/rifiuta entro 3s, procedi comunque
-                    setTimeout(function () {
-                        if (!done) console.warn('[Video] play() timeout 3s — procedo comunque');
-                        finish();
-                    }, 3000);
-                    player.getPaused().then(function (paused) {
-                        if (!paused) {
-                            console.log('[Video] Già in play, skip play()');
-                            finish();
-                            return;
-                        }
-                        player.play().then(function () {
-                            console.log('[Video] play() ok');
-                            finish();
-                        }).catch(function (err) {
-                            console.warn('[Video] play() rifiutato:', err.name || err, '— reset a 0');
-                            originalSetCurrentTime.call(player, 0).then(function () {
-                                return player.play();
-                            }).then(finish).catch(function (err2) {
-                                console.warn('[Video] play() fallito anche dopo reset:', err2.name || err2);
-                                finish();
-                            });
-                        });
-                    }).catch(function () { finish(); });
+
+                // Fase 2: play (solo se in pausa)
+                return vimeoCall(player.getPaused(), 2000, 'getPaused()', true);
+            }).then(function (paused) {
+                if (gen !== skipGeneration) return;
+                if (paused === false) {
+                    console.log('[Video] Già in play');
+                    return;
+                }
+                console.log('[Video] In pausa — chiamo play()...');
+                return vimeoCall(player.play(), 3000, 'play()').catch(function () {
+                    console.warn('[Video] play() fallito — reset a 0 e riprovo');
+                    return vimeoCall(originalSetCurrentTime.call(player, 0), 2000, 'setCurrentTime(0)', 0)
+                        .then(function () { return vimeoCall(player.play(), 3000, 'play() retry'); });
                 });
             }).then(function () {
-                if (gen !== skipGeneration) { console.log('[Video] gen stale @play'); return; }
-                console.log('[Video] Play step completato, attendo stabilizzazione...');
+                if (gen !== skipGeneration) return;
+                console.log('[Video] Play step ok — attendo 500ms...');
                 return new Promise(function (resolve) { setTimeout(resolve, 500); });
+
+            // Fase 3: getDuration + seek a fine
             }).then(function () {
                 if (gen !== skipGeneration) return;
-                return player.getDuration();
+                return vimeoCall(player.getDuration(), 2000, 'getDuration()', 0);
             }).then(function (duration) {
                 if (gen !== skipGeneration) return;
+                if (!duration || duration < 1) {
+                    console.warn('[Video] Durata non valida:', duration);
+                    throw new Error('durata non valida');
+                }
                 console.log('[Video] Durata:', duration, '— seek a', (duration - 1).toFixed(1));
                 lastSeekedTo = duration - 1;
                 seekTimestamp = Date.now() + 99999;
-                return originalSetCurrentTime.call(player, duration - 1);
+                return vimeoCall(
+                    originalSetCurrentTime.call(player, duration - 1),
+                    3000, 'setCurrentTime(' + (duration - 1).toFixed(1) + ')', duration - 1
+                );
             }).then(function (seconds) {
                 if (gen !== skipGeneration) return;
                 console.log('[Video] Portato a:', seconds);
-                // Assicura che il video stia ancora in play dopo il seek
-                player.play().catch(function () {});
+                // Assicura play dopo seek
+                vimeoCall(player.play(), 2000, 'play() post-seek');
+
+                // Fase 4: verifica dopo 1s
                 setTimeout(function () {
                     if (gen !== skipGeneration) return;
-                    player.getCurrentTime().then(function (t) {
-                        player.getDuration().then(function (d) {
+                    vimeoCall(player.getCurrentTime(), 2000, 'getCurrentTime()', 0).then(function (t) {
+                        return vimeoCall(player.getDuration(), 2000, 'getDuration() verify', 0).then(function (d) {
                             if (gen !== skipGeneration) return;
-                            if (t < d - 5) {
-                                console.warn('[Video] Skip non riuscito (posizione: ' + t.toFixed(1) + '/' + d.toFixed(1) + ')');
+                            if (!d || t < d - 5) {
+                                console.warn('[Video] Skip non riuscito (posizione: ' + (t||0).toFixed(1) + '/' + (d||0).toFixed(1) + ')');
                                 if (attempt < MAX_SKIP_RETRIES) {
                                     chatBot.addMessage('⚠️ Skip fallito, riprovo... (' + attempt + '/' + MAX_SKIP_RETRIES + ')', 0);
                                     setTimeout(function () { trySkipVideo(attempt, gen); }, 1500);
@@ -342,8 +363,8 @@
                                 }
                             } else {
                                 console.log('[Video] Skip confermato ✅');
-                                // Rilancia play e fallback navigazione se 'ended' non scatta
-                                player.play().catch(function () {});
+                                vimeoCall(player.play(), 2000, 'play() finale');
+                                // Fallback navigazione
                                 setTimeout(function () {
                                     if (gen !== skipGeneration) return;
                                     var fallbackUrl = getNextLessonUrl();
