@@ -222,14 +222,14 @@
         // Log iniziale per debug
         console.log('[Video] Prossima lezione URL (init):', getNextLessonUrl());
 
-        player.on('ended', function () {
+        // Handler ended — estratto in funzione per ri-registrazione
+        function onEnded() {
             if (!E.AUTO_SKIP_VIDEO) {
                 console.log('[Video] ENDED — navigazione automatica disabilitata.');
                 return;
             }
             console.log('[Video] ENDED — attendo completamento piattaforma...');
             setTimeout(function () {
-                // Ricalcola ora — il pulsante potrebbe essere apparso dopo il video ended
                 var nextUrl = getNextLessonUrl();
                 if (nextUrl) {
                     console.log('[Video] Navigazione verso:', nextUrl);
@@ -247,7 +247,8 @@
                     }, 3000);
                 }
             }, 3000);
-        });
+        }
+        player.on('ended', onEnded);
 
         // ── START: abilita blur/glitch + skip ──────────────────
         function startBot() {
@@ -260,25 +261,34 @@
 
             // Ri-cerca l'iframe Vimeo: la piattaforma potrebbe averlo sostituito
             var freshIframe = findVimeoIframe();
+            var needReady = false;
             if (freshIframe && freshIframe !== iframeEl) {
                 console.log('[Video] Iframe Vimeo cambiato — ricreo Player');
                 iframeEl = freshIframe;
-                // Sposta il nuovo iframe nel wrapper esistente
                 if (!videoWrap.contains(iframeEl)) {
                     videoWrap.insertBefore(iframeEl, glitchBox);
                 }
                 player = new Vimeo.Player(iframeEl);
-            } else if (freshIframe) {
-                // Stesso iframe ma player potrebbe essere rotto — ricrea
-                console.log('[Video] Stesso iframe — ricreo Player per sicurezza');
-                player = new Vimeo.Player(iframeEl);
+                player.on('ended', onEnded);   // ri-registra handler perso
+                needReady = true;
+            } else {
+                // Stesso iframe — riusa il Player esistente (postMessage già attivo)
+                console.log('[Video] Stesso iframe — riuso Player esistente');
             }
 
             videoWrap.classList.add('etass-video-active');
             requestAnimationFrame(glitchFrame);
 
             chatBot.addMessage('Stiamo saltando tutti i video, attendere...', 600);
-            trySkipVideo(0, myGen);
+
+            // Attendi ready() solo se il Player è stato ricreato
+            var readyGate = needReady
+                ? vimeoCall(player.ready(), 4000, 'ready()')
+                : Promise.resolve();
+            readyGate.then(function () {
+                if (myGen !== skipGeneration) return;
+                trySkipVideo(0, myGen);
+            });
         }
 
         // ── STOP: rimuovi blur/glitch, unmute ──────────────────
