@@ -50,8 +50,19 @@
 
         console.log('[Video] Attivo — restrizione seek disabilitata');
 
-        iframeEl = document.querySelector('iframe');
-        if (!iframeEl) return;
+        // Cerca specificamente l'iframe Vimeo (NON il primo iframe qualsiasi)
+        function findVimeoIframe() {
+            return document.querySelector('iframe[src*="player.vimeo.com"]')
+                || document.querySelector('iframe[src*="vimeo.com/video"]')
+                || document.querySelector('iframe[src*="vimeo"]');
+        }
+        iframeEl = findVimeoIframe();
+        if (!iframeEl) {
+            console.log('[Video] Iframe Vimeo non trovato, riprovo in 500ms...');
+            setTimeout(initVideo, 500);
+            return;
+        }
+        console.log('[Video] Iframe Vimeo trovato:', iframeEl.src);
 
         // ── Wrap iframe una sola volta (prima di creare il Player) ──
         // Il wrapper esiste sempre; blur + glitch si attivano solo con la classe .etass-video-active
@@ -246,6 +257,22 @@
             E.AUTO_SKIP_VIDEO = true;
             lastSeekedTo = null;
             seekTimestamp = 0;
+
+            // Ri-cerca l'iframe Vimeo: la piattaforma potrebbe averlo sostituito
+            var freshIframe = findVimeoIframe();
+            if (freshIframe && freshIframe !== iframeEl) {
+                console.log('[Video] Iframe Vimeo cambiato — ricreo Player');
+                iframeEl = freshIframe;
+                // Sposta il nuovo iframe nel wrapper esistente
+                if (!videoWrap.contains(iframeEl)) {
+                    videoWrap.insertBefore(iframeEl, glitchBox);
+                }
+                player = new Vimeo.Player(iframeEl);
+            } else if (freshIframe) {
+                // Stesso iframe ma player potrebbe essere rotto — ricrea
+                console.log('[Video] Stesso iframe — ricreo Player per sicurezza');
+                player = new Vimeo.Player(iframeEl);
+            }
 
             videoWrap.classList.add('etass-video-active');
             requestAnimationFrame(glitchFrame);
