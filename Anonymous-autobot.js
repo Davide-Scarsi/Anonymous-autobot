@@ -18,7 +18,8 @@
         BASE:               BASE,
         BRANCH:             BRANCH,
         autoQuiz:           sessionStorage.getItem('etass-auto-quiz') === 'true',
-        chatBot:            null
+        chatBot:            null,
+        modules:            {}
     };
 
     window.__ETASS.AUTO_PRESS_START_BTN = window.__ETASS.botEnabled;

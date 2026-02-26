@@ -3,7 +3,7 @@
 //  Legge da window.__ETASS — espone chatBot su window.__ETASS.chatBot
 // ─────────────────────────────────────────────
 (function () {
-    var VERSION = 'v1.0.2';
+    var VERSION = 'v1.0.3';
     var E = window.__ETASS;
     var botEnabled     = E.botEnabled;
     var autoQuiz       = E.autoQuiz;
@@ -113,13 +113,37 @@
         var toggleAutoQuiz = wrap.querySelector('#etass-toggle-autoquiz');
 
         toggleInput.addEventListener('change', function () {
-            sessionStorage.setItem('etass-bot-enabled', toggleInput.checked ? 'true' : 'false');
+            var enabled = toggleInput.checked;
+            sessionStorage.setItem('etass-bot-enabled', enabled ? 'true' : 'false');
+            E.botEnabled = enabled;
+
             // Se disabilito il bot, disabilito anche auto-quiz
-            if (!toggleInput.checked) {
+            if (!enabled) {
                 sessionStorage.setItem('etass-auto-quiz', 'false');
                 toggleAutoQuiz.checked = false;
+                E.autoQuiz = false;
             }
-            location.reload();
+
+            // Aggiorna indicatore stato (dot)
+            var dot = wrap.querySelector('.etass-dot-online');
+            if (dot) {
+                if (enabled) dot.classList.remove('etass-dot-off');
+                else dot.classList.add('etass-dot-off');
+            }
+
+            // Toggle moduli attivi senza reload
+            var mods = E.modules || {};
+            if (enabled) {
+                if (mods.video) mods.video.start();
+                if (mods.quiz)  mods.quiz.start();
+                chatBot.addMessage('🟢 <b>Bot abilitato</b> — automazione attiva.', 300);
+            } else {
+                if (mods.video) mods.video.stop();
+                if (mods.quiz)  mods.quiz.stop();
+                chatBot.addMessage('🔴 <b>Bot disabilitato</b> — automazione fermata.', 300);
+            }
+
+            console.log('[Etass] Bot ' + (enabled ? 'ABILITATO' : 'DISABILITATO') + ' (senza reload)');
         });
 
         toggleAutoQuiz.addEventListener('change', function () {

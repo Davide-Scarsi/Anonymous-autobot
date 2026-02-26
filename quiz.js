@@ -1,15 +1,28 @@
 // ─────────────────────────────────────────────
 //  MODULO QUIZ
 //  Legge da window.__ETASS (chatBot, botEnabled, ecc.)
+//  Espone start/stop su E.modules.quiz
 // ─────────────────────────────────────────────
 (function () {
     var E = window.__ETASS;
-    var botEnabled          = E.botEnabled;
-    var AUTO_PRESS_START_BTN = E.AUTO_PRESS_START_BTN;
     var chatBot             = E.chatBot;
     var _setTimeout         = E._setTimeout;
 
     function isAutoQuiz() { return E.autoQuiz; }
+
+    // ── State tracking per toggle live ──
+    var activeIntervals = [];
+    var botRunning = false;
+
+    function trackInterval(id) { activeIntervals.push(id); return id; }
+    function untrackInterval(id) {
+        clearInterval(id);
+        activeIntervals = activeIntervals.filter(function (x) { return x !== id; });
+    }
+    function clearAllTracked() {
+        activeIntervals.forEach(function (id) { clearInterval(id); });
+        activeIntervals = [];
+    }
 
     function getVisibleQuestion() {
         return Array.from(document.querySelectorAll('.wpProQuiz_listItem')).find(function (el) {
@@ -115,6 +128,7 @@
     }
 
     async function autoSolveAll() {
+        if (!botRunning) return;
         console.log('[Quiz] Avvio risoluzione domanda corrente...');
         await new Promise(function (r) { setTimeout(r, 600); });
 
@@ -127,48 +141,60 @@
 
         await solveCurrentQuestion();
 
-        var pollInterval = setInterval(function () {
+        var pollInterval = trackInterval(setInterval(function () {
+            if (!botRunning) { untrackInterval(pollInterval); return; }
             var newVisible = getVisibleQuestion();
             if (newVisible && newVisible !== visibleItem) {
-                clearInterval(pollInterval);
+                untrackInterval(pollInterval);
                 console.log('[Quiz] Nuova domanda rilevata — risolvo...');
                 setTimeout(autoSolveAll, 600);
             }
-        }, 300);
+        }, 300));
 
         console.log('[Quiz] In attesa che tu vada alla prossima domanda...');
     }
 
-    // Se il quiz è già attivo (domanda già visibile)
-    if (AUTO_PRESS_START_BTN && getVisibleQuestion()) {
-        console.log('[Quiz] Domanda già visibile — avvio immediato...');
-        autoSolveAll();
-    } else if (!AUTO_PRESS_START_BTN) {
-        console.log('[Quiz] Automazione disabilitata (AUTO_PRESS_START_BTN = false).');
-    } else {
-        const startBtn = document.querySelector('input[name="startQuiz"]');
-        if (startBtn) {
-            if (AUTO_PRESS_START_BTN) {
+    // ── START / STOP per toggle live ──────────────────────
+    function startBot() {
+        botRunning = true;
+        E.AUTO_PRESS_START_BTN = true;
+
+        if (getVisibleQuestion()) {
+            console.log('[Quiz] Domanda già visibile — avvio immediato...');
+            autoSolveAll();
+        } else {
+            const startBtn = document.querySelector('input[name="startQuiz"]');
+            if (startBtn) {
                 console.log('[Quiz] Bottone "Inizio Quiz" trovato — clicco automaticamente...');
                 setTimeout(function () { startBtn.click(); }, 500);
-            } else {
-                console.log('[Quiz] Bottone "Inizio Quiz" trovato — pressione automatica disabilitata.');
             }
-        } else {
-            console.log('[Quiz] Bottone "Inizio Quiz" non trovato...');
-        }
 
-        var startPoll = setInterval(function () {
-            if (getVisibleQuestion()) {
-                clearInterval(startPoll);
-                if (AUTO_PRESS_START_BTN) {
+            var startPoll = trackInterval(setInterval(function () {
+                if (!botRunning) { untrackInterval(startPoll); return; }
+                if (getVisibleQuestion()) {
+                    untrackInterval(startPoll);
                     console.log('[Quiz] Prima domanda rilevata — avvio...');
                     setTimeout(autoSolveAll, 500);
-                } else {
-                    console.log('[Quiz] Prima domanda rilevata — automazione disabilitata.');
                 }
-            }
-        }, 200);
+            }, 200));
+        }
+    }
+
+    function stopBot() {
+        botRunning = false;
+        E.AUTO_PRESS_START_BTN = false;
+        clearAllTracked();
+        console.log('[Quiz] Bot fermato — tutti gli intervalli cancellati.');
+    }
+
+    // ── Registra modulo per toggle live ──
+    E.modules.quiz = { start: startBot, stop: stopBot };
+
+    // Avvio iniziale
+    if (E.botEnabled) {
+        startBot();
+    } else {
+        console.log('[Quiz] Automazione disabilitata (bot disattivo).');
     }
 
     // ── Polling auto-quiz: se attivo e c'è un "Successivo" con risposta selezionata, clicca ──
