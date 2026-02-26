@@ -162,11 +162,6 @@
 
         const player = new Vimeo.Player(iframe);
 
-        // Forza il video a muto solo se bot abilitato
-        if (botEnabled) {
-            player.setVolume(0).catch(function () {});
-        }
-
         function getNextLessonUrl() {
             const nextBtn = Array.from(document.querySelectorAll('a.ld-button')).find(function (a) {
                 return a.textContent.includes('Prossima');
@@ -223,9 +218,14 @@
             console.log('[Video] Tentativo skip #' + skipAttempt + '...');
 
             player.ready().then(function () {
+                // Attesa extra per lasciare che l'iframe stabilisca il canale postMessage
+                return new Promise(function (resolve) { setTimeout(resolve, 1000); });
+            }).then(function () {
+                return player.setVolume(0).catch(function () {});
+            }).then(function () {
                 return player.play();
             }).then(function () {
-                return new Promise(function (resolve) { setTimeout(resolve, 300); });
+                return new Promise(function (resolve) { setTimeout(resolve, 500); });
             }).then(function () {
                 return player.getDuration();
             }).then(function (duration) {
