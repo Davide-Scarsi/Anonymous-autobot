@@ -231,7 +231,7 @@
             }).then(function (duration) {
                 lastSeekedTo = duration - 1;
                 seekTimestamp = Date.now() + 99999;
-                return originalSetCurrentTime.call(new Vimeo.Player(iframe), duration - 1);
+                return originalSetCurrentTime.call(player, duration - 1);
             }).then(function (seconds) {
                 console.log('[Video] Portato a:', seconds);
                 // Verifica che il seek sia andato a buon fine
