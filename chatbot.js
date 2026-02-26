@@ -3,7 +3,7 @@
 //  Legge da window.__ETASS — espone chatBot su window.__ETASS.chatBot
 // ─────────────────────────────────────────────
 (function () {
-    var VERSION = 'v1.0.12';
+    var VERSION = 'v1.0.13';
     var E = window.__ETASS;
     var botEnabled     = E.botEnabled;
     var autoQuiz       = E.autoQuiz;
@@ -16,16 +16,15 @@
     function createChatBot() {
         var style = document.createElement('style');
         style.textContent = [
-            '#etass-chat{position:fixed;bottom:24px;right:24px;width:320px;background:#f5f7fa;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.22);display:flex;flex-direction:column;font-family:"Segoe UI",Arial,sans-serif;z-index:2147483647;overflow:hidden;transform:translateY(calc(100% + 32px));opacity:0;transition:transform .5s cubic-bezier(.22,1,.36,1),opacity .5s,width .35s cubic-bezier(.22,1,.36,1),height .35s cubic-bezier(.22,1,.36,1),border-radius .35s;}',
+            '#etass-chat{position:fixed;bottom:24px;right:24px;width:320px;background:#f5f7fa;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.22);display:flex;flex-direction:column;font-family:"Segoe UI",Arial,sans-serif;z-index:2147483647;overflow:hidden;transform:translateY(calc(100% + 32px));opacity:0;max-height:700px;transition:transform .5s cubic-bezier(.22,1,.36,1),opacity .5s,width .3s cubic-bezier(.22,1,.36,1),border-radius .3s cubic-bezier(.22,1,.36,1),max-height .45s cubic-bezier(.22,1,.36,1);}',
             '#etass-chat.etass-visible{transform:translateY(0);opacity:1;}',
-            '#etass-chat.etass-minimized{width:68px;height:68px;border-radius:50%;cursor:pointer;box-shadow:0 4px 18px rgba(0,0,0,.28);}',
-            '#etass-chat.etass-expand-h{width:320px;height:68px;border-radius:34px;overflow:hidden;cursor:default;}',
-            '#etass-chat.etass-expand-h #etass-chat-body,#etass-chat.etass-expand-h #etass-chat-footer,#etass-chat.etass-expand-h #etass-settings{display:none;}',
-            '#etass-chat.etass-expand-h #etass-chat-header{pointer-events:none;}',
-            '#etass-chat.etass-collapse-h{width:68px;height:68px;border-radius:50%;overflow:hidden;cursor:pointer;}',
-            '#etass-chat.etass-collapse-h #etass-chat-body,#etass-chat.etass-collapse-h #etass-chat-footer,#etass-chat.etass-collapse-h #etass-settings,#etass-chat.etass-collapse-h .etass-hinfo,#etass-chat.etass-collapse-h .etass-dot-online{display:none;}',
-            '#etass-chat.etass-collapse-h #etass-chat-header{padding:5px;border-bottom:none;justify-content:center;width:68px;height:68px;box-sizing:border-box;}',
-            '#etass-chat.etass-collapse-h #etass-chat-header .etass-header-av{width:58px;height:58px;border:3px solid #e0e4ea;}',
+            /* Stato minimizzato: cerchio */
+            '#etass-chat.etass-minimized{width:68px;max-height:68px;border-radius:50%;cursor:pointer;box-shadow:0 4px 18px rgba(0,0,0,.28);}',
+            /* Fase 1 apertura: larghezza espansa, border-radius già corretti, altezza ancora compressa */
+            '#etass-chat.etass-pre-expand{width:320px;max-height:68px;border-radius:16px;cursor:default;pointer-events:none;}',
+            /* Fase 1 chiusura: comprimi altezza prima di restringersi in cerchio */
+            '#etass-chat.etass-collapsing{max-height:68px!important;transition:max-height .35s cubic-bezier(.22,1,.36,1)!important;}',
+            '#etass-chat.etass-collapsing #etass-chat-body,#etass-chat.etass-collapsing #etass-chat-footer,#etass-chat.etass-collapsing #etass-settings{display:none!important;}',
             '#etass-chat-header{display:flex;align-items:center;gap:10px;padding:13px 16px;background:#fff;border-bottom:1px solid #e0e4ea;cursor:pointer;user-select:none;}',
             '#etass-chat.etass-minimized #etass-chat-header{padding:5px;border-bottom:none;justify-content:center;background:#fff;width:68px;height:68px;box-sizing:border-box;}',
             '#etass-chat.etass-minimized .etass-hinfo,#etass-chat.etass-minimized .etass-dot-online{display:none;}',
@@ -162,31 +161,36 @@
         // Evita che click sul settings propaghi all'header
         settingsPanel.addEventListener('click', function (e) { e.stopPropagation(); });
 
-        // Toggle minimizza/espandi con animazione a due fasi
+        // Toggle minimizza/espandi con animazione fluida a due fasi
         var header = wrap.querySelector('#etass-chat-header');
         var isAnimating = false;
         header.addEventListener('click', function () {
             if (isAnimating) return;
             if (wrap.classList.contains('etass-minimized')) {
-                // ESPANDI: fase 1 — larghezza (cerchio → pillola)
+                // APERTURA:
+                // Fase 1 (0-300ms): larghezza 68→320 + border-radius 50%→16px
+                //                   (border-radius già corretto fin dall'inizio!)
                 isAnimating = true;
+                settingsPanel.classList.remove('etass-settings-open');
                 wrap.classList.remove('etass-minimized');
-                wrap.classList.add('etass-expand-h');
+                wrap.classList.add('etass-pre-expand');
                 setTimeout(function () {
-                    // fase 2 — altezza (pillola → chat completa)
-                    wrap.classList.remove('etass-expand-h');
+                    // Fase 2 (300-750ms): max-height 68→700px — espansione verticale graduale
+                    wrap.classList.remove('etass-pre-expand');
                     isAnimating = false;
-                }, 350);
+                }, 300);
             } else {
-                // MINIMIZZA: fase 1 — altezza (chat → pillola)
+                // CHIUSURA:
+                // Fase 1 (0-350ms): max-height 700→68px — compressione verticale graduale
                 isAnimating = true;
-                wrap.classList.add('etass-collapse-h');
+                settingsPanel.classList.remove('etass-settings-open');
+                wrap.classList.add('etass-collapsing');
                 setTimeout(function () {
-                    // fase 2 — larghezza (pillola → cerchio)
-                    wrap.classList.remove('etass-collapse-h');
+                    // Fase 2 (350-650ms): larghezza 320→68 + border-radius 16→50%
+                    wrap.classList.remove('etass-collapsing');
                     wrap.classList.add('etass-minimized');
                     isAnimating = false;
-                }, 350);
+                }, 380);
             }
         });
 
