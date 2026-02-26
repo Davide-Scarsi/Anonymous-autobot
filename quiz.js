@@ -173,6 +173,8 @@
 
     // ── Polling auto-quiz: se attivo e c'è un "Successivo" con risposta selezionata, clicca ──
     var autoQuizClicking = false;
+    var autoQuizSelectedAt = null;
+    var autoQuizLastVisible = null;
     setInterval(function () {
         if (!isAutoQuiz()) return;
         if (autoQuizClicking) return;
@@ -180,12 +182,27 @@
         if (!visible) return;
         // Controlla che ci sia almeno una risposta selezionata
         var hasSelection = visible.querySelector('.wpProQuiz_questionListItem input[type="radio"]:checked');
-        if (!hasSelection) return;
+        if (!hasSelection) {
+            // Reset se la domanda cambia o non c'è selezione
+            autoQuizSelectedAt = null;
+            autoQuizLastVisible = null;
+            return;
+        }
+        // Se è una nuova domanda, registra il momento della selezione
+        if (visible !== autoQuizLastVisible) {
+            autoQuizLastVisible = visible;
+            autoQuizSelectedAt = Date.now();
+            return;
+        }
+        // Attendi 3 secondi dalla selezione prima di premere
+        if (Date.now() - autoQuizSelectedAt < 3000) return;
         // Cerca il bottone "Successivo"
         var nextBtn = visible.querySelector('input[name="next"]');
         if (!nextBtn) nextBtn = document.querySelector('.wpProQuiz_button[name="next"]');
         if (nextBtn && nextBtn.offsetParent !== null) {
             autoQuizClicking = true;
+            autoQuizSelectedAt = null;
+            autoQuizLastVisible = null;
             nextBtn.click();
             console.log('[Quiz] ▶️ Auto-quiz: premuto "Successivo"');
             // Sblocca solo dopo che la domanda è cambiata (max 5s)
@@ -198,6 +215,6 @@
                 }
             }, 200);
         }
-    }, 1500);
+    }, 500);
 
 })();
