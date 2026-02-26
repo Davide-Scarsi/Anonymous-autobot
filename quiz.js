@@ -185,4 +185,21 @@
         }, 200);
     }
 
+    // ── Polling auto-quiz: se attivo e c'è un "Successivo" con risposta selezionata, clicca ──
+    setInterval(function () {
+        if (!isAutoQuiz()) return;
+        var visible = getVisibleQuestion();
+        if (!visible) return;
+        // Controlla che ci sia almeno una risposta selezionata
+        var hasSelection = visible.querySelector('.wpProQuiz_questionListItem input[type="radio"]:checked');
+        if (!hasSelection) return;
+        // Cerca il bottone "Successivo"
+        var nextBtn = visible.querySelector('input[name="next"]');
+        if (!nextBtn) nextBtn = document.querySelector('.wpProQuiz_button[name="next"]');
+        if (nextBtn && nextBtn.offsetParent !== null) {
+            nextBtn.click();
+            console.log('[Quiz] ▶️ Auto-quiz: premuto "Successivo"');
+        }
+    }, 1500);
+
 })();
