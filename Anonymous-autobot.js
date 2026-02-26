@@ -16,11 +16,18 @@
         AVATAR:             BASE + 'img/Avatar.png',
         ANON:               BASE + 'img/Anonymous.png',
         BASE:               BASE,
+        autoQuiz:           sessionStorage.getItem('etass-auto-quiz') === 'true',
         chatBot:            null
     };
 
     window.__ETASS.AUTO_PRESS_START_BTN = window.__ETASS.botEnabled;
     window.__ETASS.AUTO_SKIP_VIDEO      = window.__ETASS.botEnabled;
+
+    // Se il bot è disabilitato, forza anche autoQuiz a false
+    if (!window.__ETASS.botEnabled) {
+        window.__ETASS.autoQuiz = false;
+        sessionStorage.setItem('etass-auto-quiz', 'false');
+    }
 
     console.log('[Etass] Video:', window.__ETASS.hasVideo, '| Quiz:', window.__ETASS.hasQuiz);
 

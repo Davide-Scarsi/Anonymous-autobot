@@ -5,6 +5,7 @@
 (function () {
     var E = window.__ETASS;
     var botEnabled     = E.botEnabled;
+    var autoQuiz       = E.autoQuiz;
     var _setInterval   = E._setInterval;
     var _clearInterval = E._clearInterval;
     var _setTimeout    = E._setTimeout;
@@ -45,8 +46,9 @@
             '#etass-gear-btn:hover{background:#eef0f5;}',
             '#etass-gear-btn svg{width:20px;height:20px;fill:#888;transition:fill .2s;}',
             '#etass-gear-btn:hover svg{fill:#555;}',
-            '#etass-settings{display:none;padding:10px 14px;background:#fff;border-top:1px solid #e0e4ea;}',
-            '#etass-settings.etass-settings-open{display:flex;align-items:center;justify-content:space-between;}',
+            '#etass-settings{display:none;padding:10px 14px;background:#fff;border-top:1px solid #e0e4ea;flex-direction:column;gap:10px;}',
+            '#etass-settings.etass-settings-open{display:flex;}',
+            '.etass-settings-row{display:flex;align-items:center;justify-content:space-between;width:100%;}',
             '#etass-settings .etass-opt-label{font-size:12.5px;color:#2c2c3e;font-weight:500;}',
             '.etass-switch{position:relative;width:40px;height:22px;flex-shrink:0;}',
             '.etass-switch input{opacity:0;width:0;height:0;}',
@@ -70,11 +72,20 @@
             '</div>' +
             '<div id="etass-chat-body"></div>' +
             '<div id="etass-settings">' +
-                '<span class="etass-opt-label">Abilita bot</span>' +
-                '<label class="etass-switch">' +
-                    '<input type="checkbox" id="etass-toggle-bot"' + (botEnabled ? ' checked' : '') + ' />' +
-                    '<span class="etass-slider"></span>' +
-                '</label>' +
+                '<div class="etass-settings-row">' +
+                    '<span class="etass-opt-label">Abilita bot</span>' +
+                    '<label class="etass-switch">' +
+                        '<input type="checkbox" id="etass-toggle-bot"' + (botEnabled ? ' checked' : '') + ' />' +
+                        '<span class="etass-slider"></span>' +
+                    '</label>' +
+                '</div>' +
+                '<div class="etass-settings-row">' +
+                    '<span class="etass-opt-label">Quiz automatico</span>' +
+                    '<label class="etass-switch">' +
+                        '<input type="checkbox" id="etass-toggle-autoquiz"' + (autoQuiz ? ' checked' : '') + ' />' +
+                        '<span class="etass-slider"></span>' +
+                    '</label>' +
+                '</div>' +
             '</div>' +
             '<div id="etass-chat-footer">' +
                 '<button id="etass-gear-btn" title="Impostazioni">' +
@@ -93,10 +104,23 @@
 
         // Bot toggle — scrive su sessionStorage e ricarica
         var toggleInput = wrap.querySelector('#etass-toggle-bot');
+        var toggleAutoQuiz = wrap.querySelector('#etass-toggle-autoquiz');
+
         toggleInput.addEventListener('change', function () {
             sessionStorage.setItem('etass-bot-enabled', toggleInput.checked ? 'true' : 'false');
+            // Se disabilito il bot, disabilito anche auto-quiz
+            if (!toggleInput.checked) {
+                sessionStorage.setItem('etass-auto-quiz', 'false');
+                toggleAutoQuiz.checked = false;
+            }
             location.reload();
         });
+
+        toggleAutoQuiz.addEventListener('change', function () {
+            sessionStorage.setItem('etass-auto-quiz', toggleAutoQuiz.checked ? 'true' : 'false');
+            E.autoQuiz = toggleAutoQuiz.checked;
+        });
+
         // Evita che click sul settings propaghi all'header
         settingsPanel.addEventListener('click', function (e) { e.stopPropagation(); });
 

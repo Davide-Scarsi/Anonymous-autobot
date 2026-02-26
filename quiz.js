@@ -9,6 +9,8 @@
     var chatBot             = E.chatBot;
     var _setTimeout         = E._setTimeout;
 
+    function isAutoQuiz() { return E.autoQuiz; }
+
     function getVisibleQuestion() {
         return Array.from(document.querySelectorAll('.wpProQuiz_listItem')).find(function (el) {
             return window.getComputedStyle(el).display !== 'none';
@@ -99,7 +101,27 @@
                 radio.click();
                 console.log('[Quiz] ✅ Selezionato:', optionTexts[index]);
                 chatBot.addMessage('✅ <b>' + result.letter + ') ' + optionTexts[index] + '</b>', 300);
-                chatBot.addMessage('💡 ' + (result.explanation || 'Nessuna spiegazione disponibile.') + '<br><br><i>Clicca su "Successivo" per continuare.</i>', 900);
+
+                if (isAutoQuiz()) {
+                    chatBot.addMessage('💡 ' + (result.explanation || 'Nessuna spiegazione disponibile.') + '<br><br><i>Premo "Successivo" automaticamente...</i>', 900);
+                    // Cerca e clicca il bottone "Successivo" dopo un breve delay
+                    setTimeout(function () {
+                        var nextBtn = visibleItem.querySelector('input[name="next"], input.wpProQuiz_button[name="next"]');
+                        if (!nextBtn) {
+                            // Fallback: cerca qualsiasi bottone "Successivo" visibile nel quiz
+                            nextBtn = document.querySelector('.wpProQuiz_button[name="next"]');
+                        }
+                        if (nextBtn) {
+                            nextBtn.click();
+                            console.log('[Quiz] ▶️ Premuto "Successivo" automaticamente');
+                        } else {
+                            console.warn('[Quiz] Bottone "Successivo" non trovato');
+                            chatBot.addMessage('⚠️ Bottone "Successivo" non trovato — premi manualmente.', 0);
+                        }
+                    }, 1500);
+                } else {
+                    chatBot.addMessage('💡 ' + (result.explanation || 'Nessuna spiegazione disponibile.') + '<br><br><i>Clicca su "Successivo" per continuare.</i>', 900);
+                }
             }
         } else {
             console.warn('[Quiz] Lettera non valida:', result.letter);
