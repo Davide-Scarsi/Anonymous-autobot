@@ -10,7 +10,7 @@
 
     // ── State tracking per toggle live ──
     var glitchRunning  = false;
-    var skipAborted    = false;
+    var skipGeneration = 0;   // contatore generazione: invalida tutte le chain precedenti
     var player         = null;
     var iframeEl       = null;
     var videoWrap      = null;
@@ -215,20 +215,23 @@
 
         // ── START: abilita blur/glitch + skip ──────────────────
         function startBot() {
-            skipAborted = false;
+            skipGeneration++;
+            var myGen = skipGeneration;
             glitchRunning = true;
             E.AUTO_SKIP_VIDEO = true;
+            lastSeekedTo = null;
+            seekTimestamp = 0;
 
             videoWrap.classList.add('etass-video-active');
             requestAnimationFrame(glitchFrame);
 
             chatBot.addMessage('Stiamo saltando tutti i video, attendere...', 600);
-            trySkipVideo(0);
+            trySkipVideo(0, myGen);
         }
 
         // ── STOP: rimuovi blur/glitch, unmute ──────────────────
         function stopBot() {
-            skipAborted = true;
+            skipGeneration++;   // invalida tutte le chain in corso
             glitchRunning = false;
             E.AUTO_SKIP_VIDEO = false;
 
@@ -241,47 +244,48 @@
         }
 
         // ── Skip video (dentro initVideo per accesso a nextLessonUrl) ──
-        function trySkipVideo(prevAttempts) {
-            if (skipAborted) return;
+        function trySkipVideo(prevAttempts, gen) {
+            if (gen !== skipGeneration) return;
             var attempt = (prevAttempts || 0) + 1;
             var MAX_SKIP_RETRIES = 3;
 
-            console.log('[Video] Tentativo skip #' + attempt + '...');
+            console.log('[Video] Tentativo skip #' + attempt + ' (gen ' + gen + ')...');
 
             player.ready().then(function () {
-                if (skipAborted) return;
+                if (gen !== skipGeneration) return;
                 return new Promise(function (resolve) { setTimeout(resolve, 1000); });
             }).then(function () {
-                if (skipAborted) return;
+                if (gen !== skipGeneration) return;
                 return player.setVolume(0).catch(function () {});
             }).then(function () {
-                if (skipAborted) return;
+                if (gen !== skipGeneration) return;
                 return player.play();
             }).then(function () {
-                if (skipAborted) return;
+                if (gen !== skipGeneration) return;
                 return new Promise(function (resolve) { setTimeout(resolve, 500); });
             }).then(function () {
-                if (skipAborted) return;
+                if (gen !== skipGeneration) return;
                 return player.getDuration();
             }).then(function (duration) {
-                if (skipAborted) return;
+                if (gen !== skipGeneration) return;
                 lastSeekedTo = duration - 1;
                 seekTimestamp = Date.now() + 99999;
                 return originalSetCurrentTime.call(player, duration - 1);
             }).then(function (seconds) {
-                if (skipAborted) return;
+                if (gen !== skipGeneration) return;
                 console.log('[Video] Portato a:', seconds);
                 // Assicura che il video stia ancora in play dopo il seek
                 player.play().catch(function () {});
                 setTimeout(function () {
-                    if (skipAborted) return;
+                    if (gen !== skipGeneration) return;
                     player.getCurrentTime().then(function (t) {
                         player.getDuration().then(function (d) {
+                            if (gen !== skipGeneration) return;
                             if (t < d - 5) {
                                 console.warn('[Video] Skip non riuscito (posizione: ' + t.toFixed(1) + '/' + d.toFixed(1) + ')');
                                 if (attempt < MAX_SKIP_RETRIES) {
                                     chatBot.addMessage('⚠️ Skip fallito, riprovo... (' + attempt + '/' + MAX_SKIP_RETRIES + ')', 0);
-                                    setTimeout(function () { trySkipVideo(attempt); }, 1500);
+                                    setTimeout(function () { trySkipVideo(attempt, gen); }, 1500);
                                 } else {
                                     chatBot.addMessage('⚠️ Skip fallito dopo ' + MAX_SKIP_RETRIES + ' tentativi.', 0);
                                 }
@@ -291,7 +295,7 @@
                                 player.play().catch(function () {});
                                 if (nextLessonUrl) {
                                     setTimeout(function () {
-                                        if (skipAborted) return;
+                                        if (gen !== skipGeneration) return;
                                         console.log('[Video] Fallback — navigazione forzata verso:', nextLessonUrl);
                                         window.location.href = nextLessonUrl;
                                     }, 6000);
@@ -301,11 +305,11 @@
                     });
                 }, 1000);
             }).catch(function (err) {
-                if (skipAborted) return;
+                if (gen !== skipGeneration) return;
                 console.warn('[Video] Errore skip:', err);
                 if (attempt < MAX_SKIP_RETRIES) {
                     chatBot.addMessage('⚠️ Errore skip, riprovo... (' + attempt + '/' + MAX_SKIP_RETRIES + ')', 0);
-                    setTimeout(function () { trySkipVideo(attempt); }, 1500);
+                    setTimeout(function () { trySkipVideo(attempt, gen); }, 1500);
                 } else {
                     chatBot.addMessage('⚠️ Skip fallito dopo ' + MAX_SKIP_RETRIES + ' tentativi.', 0);
                 }
