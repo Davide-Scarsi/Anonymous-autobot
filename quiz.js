@@ -104,21 +104,7 @@
 
                 if (isAutoQuiz()) {
                     chatBot.addMessage('💡 ' + (result.explanation || 'Nessuna spiegazione disponibile.') + '<br><br><i>Premo "Successivo" automaticamente...</i>', 900);
-                    // Cerca e clicca il bottone "Successivo" dopo un breve delay
-                    setTimeout(function () {
-                        var nextBtn = visibleItem.querySelector('input[name="next"], input.wpProQuiz_button[name="next"]');
-                        if (!nextBtn) {
-                            // Fallback: cerca qualsiasi bottone "Successivo" visibile nel quiz
-                            nextBtn = document.querySelector('.wpProQuiz_button[name="next"]');
-                        }
-                        if (nextBtn) {
-                            nextBtn.click();
-                            console.log('[Quiz] ▶️ Premuto "Successivo" automaticamente');
-                        } else {
-                            console.warn('[Quiz] Bottone "Successivo" non trovato');
-                            chatBot.addMessage('⚠️ Bottone "Successivo" non trovato — premi manualmente.', 0);
-                        }
-                    }, 1500);
+                    // Il click su "Successivo" è gestito dal polling in fondo al modulo
                 } else {
                     chatBot.addMessage('💡 ' + (result.explanation || 'Nessuna spiegazione disponibile.') + '<br><br><i>Clicca su "Successivo" per continuare.</i>', 900);
                 }
@@ -186,8 +172,10 @@
     }
 
     // ── Polling auto-quiz: se attivo e c'è un "Successivo" con risposta selezionata, clicca ──
+    var autoQuizClicking = false;
     setInterval(function () {
         if (!isAutoQuiz()) return;
+        if (autoQuizClicking) return;
         var visible = getVisibleQuestion();
         if (!visible) return;
         // Controlla che ci sia almeno una risposta selezionata
@@ -197,8 +185,18 @@
         var nextBtn = visible.querySelector('input[name="next"]');
         if (!nextBtn) nextBtn = document.querySelector('.wpProQuiz_button[name="next"]');
         if (nextBtn && nextBtn.offsetParent !== null) {
+            autoQuizClicking = true;
             nextBtn.click();
             console.log('[Quiz] ▶️ Auto-quiz: premuto "Successivo"');
+            // Sblocca solo dopo che la domanda è cambiata (max 5s)
+            var releaseAfter = Date.now() + 5000;
+            var releaseCheck = setInterval(function () {
+                var newVisible = getVisibleQuestion();
+                if (newVisible !== visible || Date.now() > releaseAfter) {
+                    clearInterval(releaseCheck);
+                    autoQuizClicking = false;
+                }
+            }, 200);
         }
     }, 1500);
 
