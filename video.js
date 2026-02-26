@@ -255,16 +255,38 @@
             player.setVolume(0).catch(function () {}).then(function () {
                 if (gen !== skipGeneration) { console.log('[Video] gen stale @mute'); return; }
                 console.log('[Video] Mute ok');
-                // Fase 2: play — con fallback se il browser rifiuta
-                return player.play().catch(function (err) {
-                    console.warn('[Video] play() rifiutato:', err.name || err, '— riprovo con reset a 0');
-                    return originalSetCurrentTime.call(player, 0).then(function () {
-                        return player.play();
-                    });
+                // Fase 2: play — solo se in pausa; timeout 3s di sicurezza
+                return new Promise(function (playResolve) {
+                    var done = false;
+                    function finish() { if (!done) { done = true; playResolve(); } }
+                    // Safety: se play() non risolve/rifiuta entro 3s, procedi comunque
+                    setTimeout(function () {
+                        if (!done) console.warn('[Video] play() timeout 3s — procedo comunque');
+                        finish();
+                    }, 3000);
+                    player.getPaused().then(function (paused) {
+                        if (!paused) {
+                            console.log('[Video] Già in play, skip play()');
+                            finish();
+                            return;
+                        }
+                        player.play().then(function () {
+                            console.log('[Video] play() ok');
+                            finish();
+                        }).catch(function (err) {
+                            console.warn('[Video] play() rifiutato:', err.name || err, '— reset a 0');
+                            originalSetCurrentTime.call(player, 0).then(function () {
+                                return player.play();
+                            }).then(finish).catch(function (err2) {
+                                console.warn('[Video] play() fallito anche dopo reset:', err2.name || err2);
+                                finish();
+                            });
+                        });
+                    }).catch(function () { finish(); });
                 });
             }).then(function () {
                 if (gen !== skipGeneration) { console.log('[Video] gen stale @play'); return; }
-                console.log('[Video] Play ok, attendo stabilizzazione...');
+                console.log('[Video] Play step completato, attendo stabilizzazione...');
                 return new Promise(function (resolve) { setTimeout(resolve, 500); });
             }).then(function () {
                 if (gen !== skipGeneration) return;
