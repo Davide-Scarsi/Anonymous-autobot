@@ -66,25 +66,23 @@
 
         // ── Wrap iframe una sola volta (prima di creare il Player) ──
         // Il wrapper esiste sempre; blur + glitch si attivano solo con la classe .etass-video-active
+        // IMPORTANTE: NON reparentare/muovere l'iframe nel DOM — farlo ricarica il contenuto
+        // e rompe il canale postMessage del Vimeo Player SDK.
         overlayStyleEl = document.createElement('style');
         overlayStyleEl.textContent =
-            '.etass-video-wrap{position:relative;display:block;width:100%;height:100%;}' +
+            '.etass-video-wrap{position:relative;}' +
             '.etass-video-wrap.etass-video-active iframe{filter:blur(8px);pointer-events:none;}' +
-            '.etass-video-wrap iframe{display:block;width:100%;height:100%;}' +
             '.etass-glitch-box{display:none;position:absolute;top:50%;left:50%;width:260px;height:260px;transform:translate(-50%,-50%);pointer-events:none;z-index:9999;}' +
             '.etass-video-active .etass-glitch-box{display:block;}' +
             '.etass-glitch-box img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;}' +
             '.etass-glitch-layer{will-change:clip-path,transform,opacity;}';
         document.head.appendChild(overlayStyleEl);
 
-        var parent = iframeEl.parentNode;
-        videoWrap = document.createElement('div');
-        videoWrap.className = 'etass-video-wrap';
-        videoWrap.style.cssText = 'width:' + (iframeEl.offsetWidth || '100%') + (typeof iframeEl.offsetWidth === 'number' ? 'px' : '') + ';height:' + (iframeEl.offsetHeight || '100%') + (typeof iframeEl.offsetHeight === 'number' ? 'px' : '') + ';';
-        parent.insertBefore(videoWrap, iframeEl);
-        videoWrap.appendChild(iframeEl);
+        // Usa il parent esistente dell'iframe come wrapper (nessun DOM move!)
+        videoWrap = iframeEl.parentNode;
+        videoWrap.classList.add('etass-video-wrap');
 
-        // Glitch box (nascosta di default, mostrata via CSS .etass-video-active)
+        // Glitch box (appesa come fratello dopo l'iframe, nascosta di default)
         glitchBox = document.createElement('div');
         glitchBox.className = 'etass-glitch-box';
         var layers = [];
@@ -264,10 +262,13 @@
             var needReady = false;
             if (freshIframe && freshIframe !== iframeEl) {
                 console.log('[Video] Iframe Vimeo cambiato — ricreo Player');
+                // Aggiorna wrapper: rimuovi classe dal vecchio parent, aggiungi al nuovo
+                videoWrap.classList.remove('etass-video-wrap', 'etass-video-active');
                 iframeEl = freshIframe;
-                if (!videoWrap.contains(iframeEl)) {
-                    videoWrap.insertBefore(iframeEl, glitchBox);
-                }
+                videoWrap = iframeEl.parentNode;
+                videoWrap.classList.add('etass-video-wrap');
+                // Sposta glitch box nel nuovo parent
+                videoWrap.appendChild(glitchBox);
                 player = new Vimeo.Player(iframeEl);
                 player.on('ended', onEnded);   // ri-registra handler perso
                 needReady = true;
