@@ -44,24 +44,45 @@
             'Poi spiega brevemente in italiano perché è corretta (max 2 frasi).\n\n' +
             'Domanda: ' + questionText + '\n' + optionsText;
 
-        const url = 'https://gen.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai&seed=' + (42 + attempt);
-
         try {
-            const res = await fetch(url);
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            const text = await res.text();
-            const trimmed = text.trim();
-            const letter = trimmed.charAt(0).toUpperCase();
-            if (!'ABCD'.includes(letter)) {
-                throw new Error('Lettera non valida: ' + letter);
+            const res = await fetch(
+                'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2',
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        inputs: '<s>[INST] ' + prompt + ' [/INST]',
+                        parameters: { max_new_tokens: 300, temperature: 0.1, return_full_text: false }
+                    })
+                }
+            );
+            if (res.status === 503) {
+                const json503 = await res.json().catch(function () { return {}; });
+                throw new Error('loading:' + Math.round(json503.estimated_time || 20));
             }
-            const explanation = trimmed.substring(trimmed.indexOf('\n') + 1).trim();
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const json = await res.json();
+            var raw = (json[0] && json[0].generated_text) ? json[0].generated_text : '';
+            // strip [INST]...[/INST] block if return_full_text was ignored
+            var instEnd = raw.indexOf('[/INST]');
+            if (instEnd !== -1) raw = raw.substring(instEnd + 7);
+            raw = raw.trim();
+            const letter = raw.charAt(0).toUpperCase();
+            if (!'ABCD'.includes(letter)) throw new Error('Lettera non valida: ' + letter);
+            const explanation = raw.substring(raw.indexOf('\n') + 1).trim();
             return { letter, explanation };
         } catch (e) {
+            var isLoading = e.message && e.message.startsWith('loading:');
+            var waitMs = isLoading
+                ? Math.min(parseInt(e.message.split(':')[1] || 20) * 1000, 30000)
+                : 2000;
             console.warn('[Quiz] Tentativo ' + attempt + ' fallito:', e.message);
             if (attempt < MAX_RETRIES) {
-                chatBot.addMessage('⚠️ Errore di rete, riprovo... (' + attempt + '/' + MAX_RETRIES + ')', 0);
-                await new Promise(function (r) { _setTimeout(r, 1500); });
+                var msg = isLoading
+                    ? '⏳ Modello AI in avvio, attendo ~' + Math.round(waitMs / 1000) + 's...'
+                    : '⚠️ Errore di rete, riprovo... (' + attempt + '/' + MAX_RETRIES + ')';
+                chatBot.addMessage(msg, 0);
+                await new Promise(function (r) { _setTimeout(r, waitMs); });
                 return askAI(questionText, options, attempt + 1);
             }
             throw e;
