@@ -44,10 +44,17 @@
             'Poi spiega brevemente in italiano perché è corretta (max 2 frasi).\n\n' +
             'Domanda: ' + questionText + '\n' + optionsText;
 
-        const url = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai&seed=' + (42 + attempt);
-
         try {
-            const res = await fetch(url);
+            const res = await fetch('https://text.pollinations.ai/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    messages: [{ role: 'user', content: prompt }],
+                    model: 'openai',
+                    seed: 42 + attempt,
+                    private: true
+                })
+            });
             if (!res.ok) throw new Error('HTTP ' + res.status);
             const text = await res.text();
             const trimmed = text.trim();
