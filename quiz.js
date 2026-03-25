@@ -12,6 +12,9 @@
 
     // ── BYPASS DIRETTO VIA AJAX ────────────────────────────────
     async function bypassQuiz() {
+      try {
+        console.log('[Quiz] bypassQuiz() avviato');
+
         // 1. Leggi i parametri dal DOM / wpProQuiz config
         var quizEl    = document.querySelector('[id^="wpProQuiz_"]');
         var formEl    = document.querySelector('form#wp_pro_quiz_form, form[data-quiz-id], .wpProQuiz');
@@ -22,7 +25,8 @@
         // Fallback: cerca nei wpProQuizFront o variabili globali iniettate da WP
         var globalCfg = window.wpProQuizFront || window.wpProQuiz || null;
         var quizId   = quizIdEl   ? quizIdEl.value   : (globalCfg && globalCfg.quizId)   || (quizEl && quizEl.id.replace('wpProQuiz_',''));
-        var courseId = courseIdEl ? courseIdEl.value  : (globalCfg && globalCfg.course_id) || document.querySelector('[data-course-id]')?.dataset.courseId || '';
+        var courseIdNode = document.querySelector('[data-course-id]');
+        var courseId = courseIdEl ? courseIdEl.value  : (globalCfg && globalCfg.course_id) || (courseIdNode && courseIdNode.dataset.courseId) || '';
 
         // Ricerca nonce allargata: input, variabili globali, script inline
         var nonce = '';
@@ -85,7 +89,8 @@
         var results = {};
         var reviewBox = [];
         allItems.forEach(function (item, idx) {
-            var qId = item.dataset.questionProId || item.querySelector('[data-question-pro-id]')?.dataset.questionProId;
+            var qIdNode = item.querySelector('[data-question-pro-id]');
+            var qId = item.dataset.questionProId || (qIdNode && qIdNode.dataset.questionProId);
             if (!qId) {
                 // prova attributo id="wpProQuiz_questionListItem_N"
                 var inputs = item.querySelectorAll('input[type="radio"]');
@@ -156,6 +161,10 @@
         } catch (e) {
             chatBot.addMessage('❌ Errore nella chiamata: ' + e.message, 0);
         }
+      } catch (err) {
+          console.error('[Quiz] bypassQuiz() ERRORE:', err);
+          chatBot.addMessage('❌ Errore bypass: ' + err.message, 0);
+      }
     }
 
     // Esponi bypassQuiz globalmente per uso manuale dalla console
