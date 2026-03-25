@@ -73,6 +73,7 @@
                 body: JSON.stringify(body)
             });
             if (res.status === 401) throw new Error('INVALID_KEY');
+            if (res.status === 429) throw new Error('RATE_LIMIT');
             if (!res.ok) throw new Error('HTTP ' + res.status);
             var json = await res.json();
             var text = json.choices[0].message.content.trim();
@@ -84,7 +85,7 @@
             return { letter: letter, explanation: explanation };
         } catch (e) {
             console.warn('[Quiz] Tentativo ' + attempt + ' fallito:', e.message);
-            if (e.message === 'NO_KEY' || e.message === 'INVALID_KEY') throw e;
+            if (e.message === 'NO_KEY' || e.message === 'INVALID_KEY' || e.message === 'RATE_LIMIT') throw e;
             if (attempt < MAX_RETRIES) {
                 await new Promise(function (r) { _setTimeout(r, 1500); });
                 return askAI(questionText, options, attempt + 1);
@@ -139,6 +140,8 @@
             chatBot.removeTyping();
             if (e.message === 'INVALID_KEY') {
                 chatBot.addMessage('🔑 <b>Chiave API non valida!</b> Controlla la chiave nelle impostazioni (⚙️) oppure <a href="https://platform.openai.com/api-keys" target="_blank" style="color:#1a73e8;">genera una nuova chiave</a>.', 0);
+            } else if (e.message === 'RATE_LIMIT') {
+                chatBot.addMessage('⏳ <b>Troppe richieste!</b> Hai superato il limite di OpenAI. Attendi qualche secondo e riprova.<br>Se il problema persiste, controlla i <a href="https://platform.openai.com/settings/organization/limits" target="_blank" style="color:#1a73e8;">limiti del tuo account</a>.', 0);
             } else {
                 chatBot.addMessage('⚠️ Errore AI: ' + e.message, 0);
             }
