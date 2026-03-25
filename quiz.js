@@ -115,6 +115,13 @@
 
         console.log('[Quiz] Domanda:', questionText.substring(0, 80));
 
+        // Controlla chiave PRIMA di mostrare il messaggio "sto ragionando"
+        var apiKey = localStorage.getItem('etass-openai-key') || '';
+        if (!apiKey) {
+            chatBot.addMessage('🔑 <b>Chiave API mancante!</b> Apri le impostazioni (⚙️) e inserisci la tua chiave OpenAI.<br><a href="https://platform.openai.com/api-keys" target="_blank" style="color:#1a73e8;">👉 Genera la tua chiave qui</a>', 0);
+            return;
+        }
+
         var answered = false;
         chatBot.addMessage('🤔 Sto ragionando sulla risposta...', 200, function () {
             if (!answered) chatBot.addTyping();
@@ -130,10 +137,8 @@
             console.warn('[Quiz] Errore AI:', e);
             answered = true;
             chatBot.removeTyping();
-            if (e.message === 'NO_KEY') {
-                chatBot.addMessage('🔑 <b>Chiave API mancante!</b> Apri le impostazioni (⚙️) e inserisci la tua chiave OpenAI.', 0);
-            } else if (e.message === 'INVALID_KEY') {
-                chatBot.addMessage('🔑 <b>Chiave API non valida!</b> Controlla la chiave OpenAI nelle impostazioni (⚙️).', 0);
+            if (e.message === 'INVALID_KEY') {
+                chatBot.addMessage('🔑 <b>Chiave API non valida!</b> Controlla la chiave nelle impostazioni (⚙️) oppure <a href="https://platform.openai.com/api-keys" target="_blank" style="color:#1a73e8;">genera una nuova chiave</a>.', 0);
             } else {
                 chatBot.addMessage('⚠️ Errore AI: ' + e.message, 0);
             }
