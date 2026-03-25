@@ -105,30 +105,23 @@
             reviewBox.push({ solved: true });
         });
 
-        // Stima il tempo reale già trascorso (quiz_started è iniettato da WP nel DOM)
-        var realStarted = null;
-        var startedEl = document.querySelector('input[name="quiz_started"]');
-        if (startedEl) realStarted = parseInt(startedEl.value);
-        if (!realStarted) {
-            // Cerca nei dati JS di wpProQuiz
-            var cfg = window.wpProQuizFront || window.wpProQuiz;
-            if (cfg && cfg.quiz_started) realStarted = parseInt(cfg.quiz_started);
-        }
-        var elapsedMs = realStarted ? (Date.now() - realStarted) : 0;
+        // TEST: attesa fissa 60 secondi con countdown
+        var waitMs = 60000;
+        var waitSec = 60;
 
-        // Stima ~45-90 sec a domanda + spread casuale per sembrare umano
-        var nQuestions = allItems.length || 5;
-        var minMs  = nQuestions * 45000;
-        var maxMs  = nQuestions * 90000;
-        var targetMs = minMs + Math.random() * (maxMs - minMs);
-        // Se l'utente ha già aspettato abbastanza, attendi solo il residuo (min 3s)
-        var waitMs = Math.max(3000, targetMs - elapsedMs);
-        var waitSec = Math.round(waitMs / 1000);
+        chatBot.addMessage('⏳ Bypass tra <b id="etass-countdown">' + waitSec + '</b> secondi...', 0);
+        var countdownStart = Date.now();
+        await new Promise(function (r) {
+            var tick = setInterval(function () {
+                var elapsed = Date.now() - countdownStart;
+                var remaining = Math.max(0, Math.ceil((waitMs - elapsed) / 1000));
+                var el = document.getElementById('etass-countdown');
+                if (el) el.textContent = remaining;
+                if (elapsed >= waitMs) { clearInterval(tick); r(); }
+            }, 1000);
+        });
 
-        chatBot.addMessage('⏳ Simulazione tempo risposta (' + waitSec + 's)...', 0);
-        await new Promise(function (r) { _setTimeout(r, waitMs); });
-
-        var fakeStarted = realStarted || (Date.now() - Math.round(targetMs));
+        var fakeStarted = Date.now() - 60000;
 
         var payload = new URLSearchParams({
             action:       'wp_pro_quiz_cookie_save_quiz',
