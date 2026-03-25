@@ -3,7 +3,7 @@
 //  Legge da window.__ETASS — espone chatBot su window.__ETASS.chatBot
 // ─────────────────────────────────────────────
 (function () {
-    var VERSION = 'v1.0.27';
+    var VERSION = 'v1.0.28';
     var E = window.__ETASS;
     var botEnabled     = E.botEnabled;
     var autoQuiz       = E.autoQuiz;
@@ -205,6 +205,17 @@
             groqKeyInput.value = '●'.repeat(8);
             groqStatus.textContent = '✓ Chiave salvata';
             groqStatus.className = 'etass-key-ok';
+
+            // Abilita bot + quiz automaticamente dopo il salvataggio del token
+            if (!E.botEnabled) {
+                toggleInput.checked = true;
+                toggleInput.dispatchEvent(new Event('change'));
+            }
+            if (!E.autoQuiz) {
+                toggleAutoQuiz.checked = true;
+                toggleAutoQuiz.dispatchEvent(new Event('change'));
+            }
+            chatBot.addMessage('🚀 <b>Token salvato!</b> Bot e quiz automatico attivati.', 300);
         });
 
         // Evita che click sul settings propaghi all'header
