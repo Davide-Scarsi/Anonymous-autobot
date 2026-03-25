@@ -124,38 +124,41 @@
     var waitingForQuiz = false;
 
     function startBot() {
-        if (!isAutoQuiz()) {
-            console.log('[Quiz] autoQuiz disattivato — nessuna azione.');
-            return;
-        }
-
-        // Se le domande sono già nel DOM, esegui subito
+        // Se le domande sono già nel DOM
         if (document.querySelectorAll('.wpProQuiz_listItem').length) {
-            console.log('[Quiz] Domande già presenti — avvio bypass...');
-            bypassQuiz();
+            if (isAutoQuiz()) {
+                console.log('[Quiz] Domande già presenti e autoQuiz attivo — avvio bypass...');
+                bypassQuiz();
+            } else {
+                console.log('[Quiz] Domande già presenti ma autoQuiz disattivato.');
+            }
             return;
         }
 
         if (waitingForQuiz) return;
         waitingForQuiz = true;
 
-        // Premi automaticamente il bottone "Inizia Quiz" se visibile
+        // Premi sempre il bottone "Inizia Quiz" se visibile (indipendentemente da autoQuiz)
         var startBtn = document.querySelector('input[name="startQuiz"]');
         if (startBtn) {
             console.log('[Quiz] Premo "Inizia Quiz" automaticamente...');
             chatBot.addMessage('▶️ Avvio quiz automaticamente...', 0);
             setTimeout(function () { startBtn.click(); }, 600);
         } else {
-            chatBot.addMessage('⏳ In attesa che il quiz venga avviato...', 0);
+            console.log('[Quiz] Bottone "Inizia Quiz" non trovato — in attesa...');
         }
 
-        // Aspetta che le domande appaiano nel DOM (anche se l'utente avvia manualmente)
+        // Aspetta che le domande appaiano nel DOM
         var poll = setInterval(function () {
             if (document.querySelectorAll('.wpProQuiz_listItem').length) {
                 clearInterval(poll);
                 waitingForQuiz = false;
-                console.log('[Quiz] Domande caricate — avvio bypass...');
-                setTimeout(bypassQuiz, 500);
+                if (isAutoQuiz()) {
+                    console.log('[Quiz] Domande caricate e autoQuiz attivo — avvio bypass...');
+                    setTimeout(bypassQuiz, 500);
+                } else {
+                    console.log('[Quiz] Domande caricate ma autoQuiz disattivato — nessun bypass.');
+                }
             }
         }, 300);
     }
