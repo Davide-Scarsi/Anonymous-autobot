@@ -23,14 +23,40 @@
         var globalCfg = window.wpProQuizFront || window.wpProQuiz || null;
         var quizId   = quizIdEl   ? quizIdEl.value   : (globalCfg && globalCfg.quizId)   || (quizEl && quizEl.id.replace('wpProQuiz_',''));
         var courseId = courseIdEl ? courseIdEl.value  : (globalCfg && globalCfg.course_id) || document.querySelector('[data-course-id]')?.dataset.courseId || '';
-        var nonce    = nonceEl    ? nonceEl.value     : (globalCfg && globalCfg.quiz_nonce) || '';
+
+        // Ricerca nonce allargata: input, variabili globali, script inline
+        var nonce = '';
+        if (nonceEl) {
+            nonce = nonceEl.value;
+        } else if (globalCfg && (globalCfg.quiz_nonce || globalCfg.nonce)) {
+            nonce = globalCfg.quiz_nonce || globalCfg.nonce;
+        } else {
+            // Prova altri input con nome "nonce"
+            var nonceAlt = document.querySelector('input[name="nonce"]');
+            if (nonceAlt) nonce = nonceAlt.value;
+        }
+        if (!nonce) {
+            // Cerca nei global come ldVars, learndash o sfwd
+            var ldCfg = window.ldVars || window.sfwd_data || window.learndash_settings || null;
+            if (ldCfg) nonce = ldCfg.quiz_nonce || ldCfg.nonce || ldCfg.ajaxNonce || '';
+        }
+        if (!nonce) {
+            // Ultimo resort: cerca "quiz_nonce" o "nonce" negli script inline della pagina
+            var scripts = Array.from(document.querySelectorAll('script:not([src])'));
+            for (var s = 0; s < scripts.length; s++) {
+                var m = scripts[s].textContent.match(/"(?:quiz_nonce|nonce)"\s*:\s*"([^"]+)"/);
+                if (m) { nonce = m[1]; break; }
+            }
+        }
+
+        console.log('[Quiz] quizId:', quizId, '| courseId:', courseId, '| nonce:', nonce);
 
         if (!quizId) {
             chatBot.addMessage('❌ Impossibile trovare quizId nella pagina.', 0);
             return;
         }
         if (!nonce) {
-            chatBot.addMessage('❌ Nonce non trovato — ricarica la pagina e riprova.', 0);
+            chatBot.addMessage('❌ Nonce non trovato — apri la console (F12) e controlla window.wpProQuizFront o gli input della pagina.', 0);
             return;
         }
 
