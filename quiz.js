@@ -1,8 +1,8 @@
 ﻿// ─────────────────────────────────────────────
-//  MODULO QUIZ — AI SOLVER (Pollinations)
+//  MODULO QUIZ — AI SOLVER (GitHub Models)
 //  Legge domanda + opzioni dal DOM, chiede all'AI,
 //  clicca la risposta corretta automaticamente.
-//  Chiave API da localStorage('etass-pollinations-key')
+//  Chiave: GitHub PAT da localStorage('etass-github-token')
 // ─────────────────────────────────────────────
 (function () {
     var E = window.__ETASS;
@@ -36,7 +36,7 @@
         attempt = attempt || 1;
         var MAX_RETRIES = 3;
 
-        var apiKey = localStorage.getItem('etass-openai-key') || '';
+        var apiKey = localStorage.getItem('etass-github-token') || '';
 
         if (!apiKey) {
             throw new Error('NO_KEY');
@@ -52,8 +52,8 @@
             'Poi spiega brevemente in italiano perché è corretta (max 2 frasi).\n\n' +
             'Domanda: ' + questionText + '\n' + optionsText;
 
-        // OpenAI Chat Completions API
-        var url = 'https://api.openai.com/v1/chat/completions';
+        // GitHub Models API (compatibile OpenAI)
+        var url = 'https://models.inference.ai.azure.com/chat/completions';
         var body = {
             model: 'gpt-4o-mini',
             messages: [
@@ -117,9 +117,9 @@
         console.log('[Quiz] Domanda:', questionText.substring(0, 80));
 
         // Controlla chiave PRIMA di mostrare il messaggio "sto ragionando"
-        var apiKey = localStorage.getItem('etass-openai-key') || '';
+        var apiKey = localStorage.getItem('etass-github-token') || '';
         if (!apiKey) {
-            chatBot.addMessage('🔑 <b>Chiave API mancante!</b> Apri le impostazioni (⚙️) e inserisci la tua chiave OpenAI.<br><a href="https://platform.openai.com/api-keys" target="_blank" style="color:#1a73e8;">👉 Genera la tua chiave qui</a>', 0);
+            chatBot.addMessage('🔑 <b>Token GitHub mancante!</b> Apri le impostazioni (⚙️) e inserisci il tuo GitHub PAT.<br><a href="https://github.com/settings/tokens" target="_blank" style="color:#1a73e8;">👉 Genera il tuo token qui</a>', 0);
             return;
         }
 
@@ -139,9 +139,9 @@
             answered = true;
             chatBot.removeTyping();
             if (e.message === 'INVALID_KEY') {
-                chatBot.addMessage('🔑 <b>Chiave API non valida!</b> Controlla la chiave nelle impostazioni (⚙️) oppure <a href="https://platform.openai.com/api-keys" target="_blank" style="color:#1a73e8;">genera una nuova chiave</a>.', 0);
+                chatBot.addMessage('🔑 <b>Token non valido!</b> Controlla il token nelle impostazioni (⚙️) oppure <a href="https://github.com/settings/tokens" target="_blank" style="color:#1a73e8;">genera un nuovo PAT</a>.', 0);
             } else if (e.message === 'RATE_LIMIT') {
-                chatBot.addMessage('⏳ <b>Troppe richieste!</b> Hai superato il limite di OpenAI. Attendi qualche secondo e riprova.<br>Se il problema persiste, controlla i <a href="https://platform.openai.com/settings/organization/limits" target="_blank" style="color:#1a73e8;">limiti del tuo account</a>.', 0);
+                chatBot.addMessage('⏳ <b>Troppe richieste!</b> Hai superato il limite di GitHub Models. Attendo e riprovo automaticamente...', 0);
             } else {
                 chatBot.addMessage('⚠️ Errore AI: ' + e.message, 0);
             }
@@ -167,6 +167,20 @@
         }
     }
 
+    // ── Rate-limit: timestamp ultima richiesta API ──
+    var lastApiCallTime = 0;
+    var API_DELAY_MS = 7000; // 7s → max ~8.5 RPM, dentro il limite di 10 RPM (GitHub Models free)
+
+    function waitForRateLimit() {
+        var elapsed = Date.now() - lastApiCallTime;
+        var waitMs = API_DELAY_MS - elapsed;
+        if (waitMs <= 0) return Promise.resolve();
+        var secs = Math.ceil(waitMs / 1000);
+        chatBot.addMessage('⏳ Attendo <b>' + secs + 's</b> per rispettare il rate-limit...', 0);
+        console.log('[Quiz] Rate-limit: attendo ' + secs + 's...');
+        return new Promise(function (r) { _setTimeout(r, waitMs); });
+    }
+
     // ── Risolvi tutte le domande in sequenza ──
     async function autoSolveAll() {
         if (!botRunning) return;
@@ -178,6 +192,10 @@
             console.log('[Quiz] Nessuna domanda visibile.');
             return;
         }
+
+        // Attendi rate-limit prima di chiamare l'AI
+        await waitForRateLimit();
+        lastApiCallTime = Date.now();
 
         await solveCurrentQuestion();
 
