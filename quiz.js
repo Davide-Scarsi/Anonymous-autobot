@@ -36,7 +36,11 @@
         attempt = attempt || 1;
         var MAX_RETRIES = 3;
 
-        var apiKey = localStorage.getItem('etass-pollinations-key') || '';
+        var apiKey = localStorage.getItem('etass-openai-key') || '';
+
+        if (!apiKey) {
+            throw new Error('NO_KEY');
+        }
 
         var optionsText = options.map(function (o, i) {
             return String.fromCharCode(65 + i) + ') ' + o;
@@ -48,40 +52,40 @@
             'Poi spiega brevemente in italiano perché è corretta (max 2 frasi).\n\n' +
             'Domanda: ' + questionText + '\n' + optionsText;
 
-        // Pollinations Text API — POST con JSON body
-        var url = 'https://text.pollinations.ai/';
+        // OpenAI Chat Completions API
+        var url = 'https://api.openai.com/v1/chat/completions';
         var body = {
+            model: 'gpt-4o-mini',
             messages: [
                 { role: 'user', content: prompt }
             ],
-            model: 'openai',
-            seed: 42 + attempt
+            max_tokens: 200,
+            temperature: 0.3
         };
-
-        // Se c'è una chiave API, aggiungila al body
-        if (apiKey) {
-            body.token = apiKey;
-        }
 
         try {
             var res = await fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + apiKey
+                },
                 body: JSON.stringify(body)
             });
+            if (res.status === 401) throw new Error('INVALID_KEY');
             if (!res.ok) throw new Error('HTTP ' + res.status);
-            var text = await res.text();
-            var trimmed = text.trim();
-            var letter = trimmed.charAt(0).toUpperCase();
+            var json = await res.json();
+            var text = json.choices[0].message.content.trim();
+            var letter = text.charAt(0).toUpperCase();
             if ('ABCD'.indexOf(letter) === -1) {
                 throw new Error('Lettera non valida: ' + letter);
             }
-            var explanation = trimmed.substring(trimmed.indexOf('\n') + 1).trim();
+            var explanation = text.substring(text.indexOf('\n') + 1).trim();
             return { letter: letter, explanation: explanation };
         } catch (e) {
             console.warn('[Quiz] Tentativo ' + attempt + ' fallito:', e.message);
+            if (e.message === 'NO_KEY' || e.message === 'INVALID_KEY') throw e;
             if (attempt < MAX_RETRIES) {
-                chatBot.addMessage('⚠️ Errore di rete, riprovo... (' + attempt + '/' + MAX_RETRIES + ')', 0);
                 await new Promise(function (r) { _setTimeout(r, 1500); });
                 return askAI(questionText, options, attempt + 1);
             }
@@ -126,7 +130,13 @@
             console.warn('[Quiz] Errore AI:', e);
             answered = true;
             chatBot.removeTyping();
-            chatBot.addMessage('⚠️ Errore AI: ' + e.message + '. Riprovo alla prossima domanda.', 0);
+            if (e.message === 'NO_KEY') {
+                chatBot.addMessage('🔑 <b>Chiave API mancante!</b> Apri le impostazioni (⚙️) e inserisci la tua chiave OpenAI.', 0);
+            } else if (e.message === 'INVALID_KEY') {
+                chatBot.addMessage('🔑 <b>Chiave API non valida!</b> Controlla la chiave OpenAI nelle impostazioni (⚙️).', 0);
+            } else {
+                chatBot.addMessage('⚠️ Errore AI: ' + e.message, 0);
+            }
             return;
         }
 
