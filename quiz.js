@@ -55,8 +55,23 @@
             chatBot.addMessage('❌ Impossibile trovare quizId nella pagina.', 0);
             return;
         }
+
+        // DEBUG: dump tutti i posti dove abbiamo cercato
         if (!nonce) {
-            chatBot.addMessage('❌ Nonce non trovato — apri la console (F12) e controlla window.wpProQuizFront o gli input della pagina.', 0);
+            console.log('[Quiz][DEBUG] ─── NONCE DUMP ───');
+            console.log('[Quiz][DEBUG] input nonce/wpnonce:', nonceEl);
+            console.log('[Quiz][DEBUG] input[name="nonce"]:', document.querySelector('input[name="nonce"]'));
+            console.log('[Quiz][DEBUG] Tutti gli input hidden:', Array.from(document.querySelectorAll('input[type="hidden"]')).map(function(el){ return el.name + '=' + el.value; }));
+            console.log('[Quiz][DEBUG] wpProQuizFront:', window.wpProQuizFront);
+            console.log('[Quiz][DEBUG] wpProQuiz:', window.wpProQuiz);
+            console.log('[Quiz][DEBUG] ldVars:', window.ldVars);
+            console.log('[Quiz][DEBUG] sfwd_data:', window.sfwd_data);
+            console.log('[Quiz][DEBUG] learndash_settings:', window.learndash_settings);
+            // Cerca qualsiasi variabile globale con "nonce" nel nome
+            var nonceGlobals = Object.keys(window).filter(function(k){ try { return typeof window[k] === 'object' && window[k] !== null && JSON.stringify(window[k]).indexOf('nonce') > -1; } catch(e){ return false; } });
+            console.log('[Quiz][DEBUG] Variabili globali con "nonce":', nonceGlobals);
+            nonceGlobals.forEach(function(k){ try { console.log('[Quiz][DEBUG]  ->', k, '=', JSON.stringify(window[k]).substring(0, 500)); } catch(e){} });
+            chatBot.addMessage('❌ Nonce non trovato — apri la console (F12) e cerca "[Quiz][DEBUG]" per i dettagli.', 0);
             return;
         }
 
