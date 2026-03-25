@@ -66,6 +66,14 @@
             '#etass-settings.etass-settings-open{display:flex;}',
             '.etass-settings-row{display:flex;align-items:center;justify-content:space-between;width:100%;}',
             '#etass-settings .etass-opt-label{font-size:12.5px;color:#2c2c3e;font-weight:500;}',
+            '.etass-settings-key-row{gap:6px;}',
+            '#etass-groq-key{flex:1;font-size:11px;padding:5px 8px;border:1px solid #d0d5de;border-radius:6px;outline:none;min-width:0;}',
+            '#etass-groq-save{font-size:11px;padding:5px 10px;background:#4caf50;color:#fff;border:none;border-radius:6px;cursor:pointer;white-space:nowrap;}',
+            '#etass-groq-save:hover{background:#388e3c;}',
+            '#etass-groq-status{font-size:10.5px;color:#4caf50;min-height:14px;}',
+            '#etass-groq-status.etass-key-error{color:#e53935;}',
+            '#etass-groq-status.etass-key-ok{color:#4caf50;}',
+
             '.etass-switch{position:relative;width:40px;height:22px;flex-shrink:0;}',
             '.etass-switch input{opacity:0;width:0;height:0;}',
             '.etass-switch .etass-slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#ccd0d9;border-radius:22px;transition:.3s;}',
@@ -103,6 +111,11 @@
                         '<span class="etass-slider"></span>' +
                     '</label>' +
                 '</div>' +
+                '<div class="etass-settings-row etass-settings-key-row">' +
+                    '<input id="etass-groq-key" type="password" placeholder="Groq API key (gsk_...)" autocomplete="off" />' +
+                    '<button id="etass-groq-save">Salva</button>' +
+                '</div>' +
+                '<div id="etass-groq-status"></div>' +
             '</div>' +
             '<div id="etass-chat-footer">' +
                 '<span id="etass-version">' + VERSION + (branch === 'dev' ? '<span class="etass-dev-tag">(dev)</span>' : '') + '</span>' +
@@ -166,6 +179,37 @@
             sessionStorage.setItem('etass-auto-quiz', toggleAutoQuiz.checked ? 'true' : 'false');
             E.autoQuiz = toggleAutoQuiz.checked;
             console.log('[Etass] Quiz automatico:', toggleAutoQuiz.checked ? 'ATTIVATO' : 'DISATTIVATO');
+        });
+
+        // Groq API key
+        var groqKeyInput  = wrap.querySelector('#etass-groq-key');
+        var groqSaveBtn   = wrap.querySelector('#etass-groq-save');
+        var groqStatus    = wrap.querySelector('#etass-groq-status');
+        var storedKey = localStorage.getItem('etass-groq-key') || '';
+        groqKeyInput.value = storedKey ? '●'.repeat(8) : '';
+        if (storedKey) {
+            groqStatus.textContent = '✓ Chiave salvata';
+            groqStatus.className = 'etass-key-ok';
+        }
+        groqKeyInput.addEventListener('focus', function () {
+            if (localStorage.getItem('etass-groq-key')) groqKeyInput.value = '';
+        });
+        groqSaveBtn.addEventListener('click', function () {
+            var val = groqKeyInput.value.trim();
+            if (!val || val === '●'.repeat(8)) {
+                groqStatus.textContent = '⚠️ Inserisci la chiave';
+                groqStatus.className = 'etass-key-error';
+                return;
+            }
+            if (!val.startsWith('gsk_')) {
+                groqStatus.textContent = '⚠️ La chiave deve iniziare con gsk_';
+                groqStatus.className = 'etass-key-error';
+                return;
+            }
+            localStorage.setItem('etass-groq-key', val);
+            groqKeyInput.value = '●'.repeat(8);
+            groqStatus.textContent = '✓ Chiave salvata';
+            groqStatus.className = 'etass-key-ok';
         });
 
         // Evita che click sul settings propaghi all'header

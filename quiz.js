@@ -30,26 +30,6 @@
         });
     }
 
-    async function _askChromeAI(prompt) {
-        // Prompt API (Chrome 131+ con Gemini Nano integrato)
-        var lm = window.ai && (window.ai.languageModel || window.ai.assistant);
-        if (!lm) return null;
-        try {
-            var cap = await lm.capabilities();
-            if (!cap || cap.available === 'no') return null;
-            if (cap.available === 'after-download') {
-                chatBot.addMessage('⏳ Download modello AI locale in corso...', 0);
-            }
-            var session = await lm.create({ temperature: 0.1, topK: 3 });
-            var result = await session.prompt(prompt);
-            session.destroy();
-            return result || null;
-        } catch (err) {
-            console.warn('[Quiz] Chrome AI errore:', err.message);
-            return null;
-        }
-    }
-
     async function askAI(questionText, options, attempt) {
         attempt = attempt || 1;
         var MAX_RETRIES = 3;
@@ -64,16 +44,40 @@
             'Poi spiega brevemente in italiano perché è corretta (max 2 frasi).\n\n' +
             'Domanda: ' + questionText + '\n' + optionsText;
 
+        var apiKey = localStorage.getItem('etass-groq-key');
+        if (!apiKey) {
+            throw new Error('Nessuna Groq API key — aprire le impostazioni (⚙️) e inserire la chiave da console.groq.com');
+        }
+
         try {
-            var raw = await _askChromeAI(prompt);
-            if (!raw) throw new Error('Chrome AI non disponibile');
-            raw = raw.trim();
+            const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + apiKey
+                },
+                body: JSON.stringify({
+                    model: 'llama-3.1-8b-instant',
+                    messages: [{ role: 'user', content: prompt }],
+                    max_tokens: 200,
+                    temperature: 0.1
+                })
+            });
+            if (res.status === 401) throw new Error('API key non valida — aggiornala nelle impostazioni ⚙️');
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const json = await res.json();
+            var raw = (json.choices && json.choices[0] && json.choices[0].message)
+                ? json.choices[0].message.content.trim()
+                : '';
+            if (!raw) throw new Error('Risposta vuota');
             const letter = raw.charAt(0).toUpperCase();
             if (!'ABCD'.includes(letter)) throw new Error('Lettera non valida: ' + letter);
             const explanation = raw.substring(raw.indexOf('\n') + 1).trim();
             return { letter, explanation };
         } catch (e) {
             console.warn('[Quiz] Tentativo ' + attempt + ' fallito:', e.message);
+            // Non riprovare se è un errore di autenticazione
+            if (e.message.includes('API key') || e.message.includes('Nessuna Groq')) throw e;
             if (attempt < MAX_RETRIES) {
                 chatBot.addMessage('⚠️ Riprovo... (' + attempt + '/' + MAX_RETRIES + ')', 0);
                 await new Promise(function (r) { _setTimeout(r, 1500); });
