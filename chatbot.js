@@ -3,7 +3,7 @@
 //  Legge da window.__ETASS — espone chatBot su window.__ETASS.chatBot
 // ─────────────────────────────────────────────
 (function () {
-    var VERSION = 'v1.0.21';
+    var VERSION = 'v1.0.22';
     var E = window.__ETASS;
     var botEnabled     = E.botEnabled;
     var autoQuiz       = E.autoQuiz;
@@ -112,7 +112,7 @@
                     '</label>' +
                 '</div>' +
                 '<div class="etass-settings-row etass-settings-key-row">' +
-                    '<input id="etass-groq-key" type="password" placeholder="Groq API key (gsk_...)" autocomplete="off" />' +
+                    '<input id="etass-groq-key" type="password" placeholder="Pollinations API key" autocomplete="off" />' +
                     '<button id="etass-groq-save">Salva</button>' +
                 '</div>' +
                 '<div id="etass-groq-status"></div>' +
@@ -185,14 +185,14 @@
         var groqKeyInput  = wrap.querySelector('#etass-groq-key');
         var groqSaveBtn   = wrap.querySelector('#etass-groq-save');
         var groqStatus    = wrap.querySelector('#etass-groq-status');
-        var storedKey = localStorage.getItem('etass-groq-key') || '';
+        var storedKey = localStorage.getItem('etass-pollinations-key') || '';
         groqKeyInput.value = storedKey ? '●'.repeat(8) : '';
         if (storedKey) {
             groqStatus.textContent = '✓ Chiave salvata';
             groqStatus.className = 'etass-key-ok';
         }
         groqKeyInput.addEventListener('focus', function () {
-            if (localStorage.getItem('etass-groq-key')) groqKeyInput.value = '';
+            if (localStorage.getItem('etass-pollinations-key')) groqKeyInput.value = '';
         });
         groqSaveBtn.addEventListener('click', function () {
             var val = groqKeyInput.value.trim();
@@ -201,12 +201,7 @@
                 groqStatus.className = 'etass-key-error';
                 return;
             }
-            if (!val.startsWith('gsk_')) {
-                groqStatus.textContent = '⚠️ La chiave deve iniziare con gsk_';
-                groqStatus.className = 'etass-key-error';
-                return;
-            }
-            localStorage.setItem('etass-groq-key', val);
+            localStorage.setItem('etass-pollinations-key', val);
             groqKeyInput.value = '●'.repeat(8);
             groqStatus.textContent = '✓ Chiave salvata';
             groqStatus.className = 'etass-key-ok';
