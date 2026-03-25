@@ -123,14 +123,21 @@
     // ── START / STOP per toggle live ──────────────────────
     var waitingForQuiz = false;
 
+    // Cerca la prima domanda VISIBILE (display !== 'none')
+    function getVisibleQuestion() {
+        return Array.from(document.querySelectorAll('.wpProQuiz_listItem')).find(function (el) {
+            return window.getComputedStyle(el).display !== 'none';
+        });
+    }
+
     function startBot() {
-        // Se le domande sono già nel DOM
-        if (document.querySelectorAll('.wpProQuiz_listItem').length) {
+        // Se c'è già una domanda visibile, il quiz è già partito
+        if (getVisibleQuestion()) {
             if (isAutoQuiz()) {
-                console.log('[Quiz] Domande già presenti e autoQuiz attivo — avvio bypass...');
+                console.log('[Quiz] Domanda visibile e autoQuiz attivo — avvio bypass...');
                 bypassQuiz();
             } else {
-                console.log('[Quiz] Domande già presenti ma autoQuiz disattivato.');
+                console.log('[Quiz] Domanda visibile ma autoQuiz disattivato.');
             }
             return;
         }
@@ -138,29 +145,29 @@
         if (waitingForQuiz) return;
         waitingForQuiz = true;
 
-        // Premi sempre il bottone "Inizia Quiz" se visibile (indipendentemente da autoQuiz)
+        // Premi sempre il bottone "Inizia Quiz" (il quiz non è ancora partito)
         var startBtn = document.querySelector('input[name="startQuiz"]');
         if (startBtn) {
             console.log('[Quiz] Premo "Inizia Quiz" automaticamente...');
             chatBot.addMessage('▶️ Avvio quiz automaticamente...', 0);
-            setTimeout(function () { startBtn.click(); }, 600);
+            setTimeout(function () { startBtn.click(); }, 500);
         } else {
             console.log('[Quiz] Bottone "Inizia Quiz" non trovato — in attesa...');
         }
 
-        // Aspetta che le domande appaiano nel DOM
-        var poll = setInterval(function () {
-            if (document.querySelectorAll('.wpProQuiz_listItem').length) {
-                clearInterval(poll);
+        // Aspetta che appaia la prima domanda VISIBILE
+        var startPoll = setInterval(function () {
+            if (getVisibleQuestion()) {
+                clearInterval(startPoll);
                 waitingForQuiz = false;
                 if (isAutoQuiz()) {
-                    console.log('[Quiz] Domande caricate e autoQuiz attivo — avvio bypass...');
+                    console.log('[Quiz] Prima domanda visibile e autoQuiz attivo — avvio bypass...');
                     setTimeout(bypassQuiz, 500);
                 } else {
-                    console.log('[Quiz] Domande caricate ma autoQuiz disattivato — nessun bypass.');
+                    console.log('[Quiz] Prima domanda visibile ma autoQuiz disattivato.');
                 }
             }
-        }, 300);
+        }, 200);
     }
 
     function stopBot() {
