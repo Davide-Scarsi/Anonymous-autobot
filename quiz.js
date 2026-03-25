@@ -30,6 +30,26 @@
         });
     }
 
+    async function _askChromeAI(prompt) {
+        // Prompt API (Chrome 131+ con Gemini Nano integrato)
+        var lm = window.ai && (window.ai.languageModel || window.ai.assistant);
+        if (!lm) return null;
+        try {
+            var cap = await lm.capabilities();
+            if (!cap || cap.available === 'no') return null;
+            if (cap.available === 'after-download') {
+                chatBot.addMessage('⏳ Download modello AI locale in corso...', 0);
+            }
+            var session = await lm.create({ temperature: 0.1, topK: 3 });
+            var result = await session.prompt(prompt);
+            session.destroy();
+            return result || null;
+        } catch (err) {
+            console.warn('[Quiz] Chrome AI errore:', err.message);
+            return null;
+        }
+    }
+
     async function askAI(questionText, options, attempt) {
         attempt = attempt || 1;
         var MAX_RETRIES = 3;
@@ -45,44 +65,18 @@
             'Domanda: ' + questionText + '\n' + optionsText;
 
         try {
-            const res = await fetch(
-                'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2',
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        inputs: '<s>[INST] ' + prompt + ' [/INST]',
-                        parameters: { max_new_tokens: 300, temperature: 0.1, return_full_text: false }
-                    })
-                }
-            );
-            if (res.status === 503) {
-                const json503 = await res.json().catch(function () { return {}; });
-                throw new Error('loading:' + Math.round(json503.estimated_time || 20));
-            }
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            const json = await res.json();
-            var raw = (json[0] && json[0].generated_text) ? json[0].generated_text : '';
-            // strip [INST]...[/INST] block if return_full_text was ignored
-            var instEnd = raw.indexOf('[/INST]');
-            if (instEnd !== -1) raw = raw.substring(instEnd + 7);
+            var raw = await _askChromeAI(prompt);
+            if (!raw) throw new Error('Chrome AI non disponibile');
             raw = raw.trim();
             const letter = raw.charAt(0).toUpperCase();
             if (!'ABCD'.includes(letter)) throw new Error('Lettera non valida: ' + letter);
             const explanation = raw.substring(raw.indexOf('\n') + 1).trim();
             return { letter, explanation };
         } catch (e) {
-            var isLoading = e.message && e.message.startsWith('loading:');
-            var waitMs = isLoading
-                ? Math.min(parseInt(e.message.split(':')[1] || 20) * 1000, 30000)
-                : 2000;
             console.warn('[Quiz] Tentativo ' + attempt + ' fallito:', e.message);
             if (attempt < MAX_RETRIES) {
-                var msg = isLoading
-                    ? '⏳ Modello AI in avvio, attendo ~' + Math.round(waitMs / 1000) + 's...'
-                    : '⚠️ Errore di rete, riprovo... (' + attempt + '/' + MAX_RETRIES + ')';
-                chatBot.addMessage(msg, 0);
-                await new Promise(function (r) { _setTimeout(r, waitMs); });
+                chatBot.addMessage('⚠️ Riprovo... (' + attempt + '/' + MAX_RETRIES + ')', 0);
+                await new Promise(function (r) { _setTimeout(r, 1500); });
                 return askAI(questionText, options, attempt + 1);
             }
             throw e;
