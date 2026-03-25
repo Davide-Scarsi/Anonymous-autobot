@@ -121,16 +121,47 @@
     E.bypassQuiz = bypassQuiz;
 
     // ── START / STOP per toggle live ──────────────────────
+    var waitingForQuiz = false;
+
     function startBot() {
         if (!isAutoQuiz()) {
             console.log('[Quiz] autoQuiz disattivato — nessuna azione.');
             return;
         }
-        console.log('[Quiz] autoQuiz attivo — avvio bypass diretto...');
-        bypassQuiz();
+
+        // Se le domande sono già nel DOM, esegui subito
+        if (document.querySelectorAll('.wpProQuiz_listItem').length) {
+            console.log('[Quiz] Domande già presenti — avvio bypass...');
+            bypassQuiz();
+            return;
+        }
+
+        if (waitingForQuiz) return;
+        waitingForQuiz = true;
+
+        // Premi automaticamente il bottone "Inizia Quiz" se visibile
+        var startBtn = document.querySelector('input[name="startQuiz"]');
+        if (startBtn) {
+            console.log('[Quiz] Premo "Inizia Quiz" automaticamente...');
+            chatBot.addMessage('▶️ Avvio quiz automaticamente...', 0);
+            setTimeout(function () { startBtn.click(); }, 600);
+        } else {
+            chatBot.addMessage('⏳ In attesa che il quiz venga avviato...', 0);
+        }
+
+        // Aspetta che le domande appaiano nel DOM (anche se l'utente avvia manualmente)
+        var poll = setInterval(function () {
+            if (document.querySelectorAll('.wpProQuiz_listItem').length) {
+                clearInterval(poll);
+                waitingForQuiz = false;
+                console.log('[Quiz] Domande caricate — avvio bypass...');
+                setTimeout(bypassQuiz, 500);
+            }
+        }, 300);
     }
 
     function stopBot() {
+        waitingForQuiz = false;
         console.log('[Quiz] Bot fermato.');
     }
 
