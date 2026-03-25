@@ -3,7 +3,7 @@
 //  Legge da window.__ETASS — espone chatBot su window.__ETASS.chatBot
 // ─────────────────────────────────────────────
 (function () {
-    var VERSION = 'v1.0.28';
+    var VERSION = 'v1.0.29';
     var E = window.__ETASS;
     var botEnabled     = E.botEnabled;
     var autoQuiz       = E.autoQuiz;
@@ -210,6 +210,11 @@
             if (!E.botEnabled) {
                 toggleInput.checked = true;
                 toggleInput.dispatchEvent(new Event('change'));
+            } else {
+                // Bot già abilitato ma potrebbe essere fermo (chiave mancante al primo avvio) → rilancia
+                var mods = E.modules || {};
+                if (mods.quiz) { mods.quiz.stop(); mods.quiz.start(); }
+                if (mods.video) { mods.video.stop(); mods.video.start(); }
             }
             if (!E.autoQuiz) {
                 toggleAutoQuiz.checked = true;
