@@ -44,11 +44,14 @@
             var ldCfg = window.ldVars || window.sfwd_data || window.learndash_settings || null;
             if (ldCfg) nonce = ldCfg.quiz_nonce || ldCfg.nonce || ldCfg.ajaxNonce || '';
         }
+        if (!nonce && window.wpApiSettings && window.wpApiSettings.nonce) {
+            nonce = window.wpApiSettings.nonce;
+        }
         if (!nonce) {
-            // Ultimo resort: cerca "quiz_nonce" o "nonce" negli script inline della pagina
+            // Ultimo resort: cerca "nonce" negli script inline della pagina
             var scripts = Array.from(document.querySelectorAll('script:not([src])'));
             for (var s = 0; s < scripts.length; s++) {
-                var m = scripts[s].textContent.match(/"(?:quiz_nonce|nonce)"\s*:\s*"([^"]+)"/);
+                var m = scripts[s].textContent.match(/"(?:quiz_nonce|_wpnonce|nonce)"\s*:\s*"([^"]+)"/);
                 if (m) { nonce = m[1]; break; }
             }
         }
@@ -130,7 +133,10 @@
             quizId:       quizId,
             quiz_started: fakeStarted,
             results:      JSON.stringify(results),
+            nonce:        nonce,
             quiz_nonce:   nonce,
+            _wpnonce:     nonce,
+            _ajax_nonce:  nonce,
             reviewBox:    JSON.stringify(reviewBox)
         });
 
