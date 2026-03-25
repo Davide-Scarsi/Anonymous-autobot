@@ -1,7 +1,8 @@
 // ─────────────────────────────────────────────
-//  MODULO QUIZ
-//  Legge da window.__ETASS (chatBot, botEnabled, ecc.)
-//  Espone start/stop su E.modules.quiz
+//  MODULO QUIZ — AUTO-SOLVE VIA UI
+//  Trova le risposte corrette dai dati wpProQuiz,
+//  clicca le radio giuste e completa il quiz
+//  tramite il JS nativo (gestisce nonces/payload)
 // ─────────────────────────────────────────────
 (function () {
     var E = window.__ETASS;
@@ -10,183 +11,220 @@
 
     function isAutoQuiz() { return E.autoQuiz; }
 
-    // ── BYPASS DIRETTO VIA AJAX ────────────────────────────────
-    async function bypassQuiz() {
-      try {
-        console.log('[Quiz] bypassQuiz() avviato');
-
-        // 1. Leggi i parametri dal DOM / wpProQuiz config
-        var quizEl    = document.querySelector('[id^="wpProQuiz_"]');
-        var formEl    = document.querySelector('form#wp_pro_quiz_form, form[data-quiz-id], .wpProQuiz');
-        var nonceEl   = document.querySelector('input[name="quiz_nonce"], input[name="_wpnonce"]');
-        var quizIdEl  = document.querySelector('input[name="quizId"]');
-        var courseIdEl= document.querySelector('input[name="course_id"]');
-
-        // Fallback: cerca nei wpProQuizFront o variabili globali iniettate da WP
-        var globalCfg = window.wpProQuizFront || window.wpProQuiz || null;
-        var quizId   = quizIdEl   ? quizIdEl.value   : (globalCfg && globalCfg.quizId)   || (quizEl && quizEl.id.replace('wpProQuiz_',''));
-        var courseIdNode = document.querySelector('[data-course-id]');
-        var courseId = courseIdEl ? courseIdEl.value  : (globalCfg && globalCfg.course_id) || (courseIdNode && courseIdNode.dataset.courseId) || '';
-
-        // Ricerca nonce allargata: input, variabili globali, script inline
-        var nonce = '';
-        if (nonceEl) {
-            nonce = nonceEl.value;
-        } else if (globalCfg && (globalCfg.quiz_nonce || globalCfg.nonce)) {
-            nonce = globalCfg.quiz_nonce || globalCfg.nonce;
-        } else {
-            // Prova altri input con nome "nonce"
-            var nonceAlt = document.querySelector('input[name="nonce"]');
-            if (nonceAlt) nonce = nonceAlt.value;
-        }
-        if (!nonce) {
-            // Cerca nei global come ldVars, learndash o sfwd
-            var ldCfg = window.ldVars || window.sfwd_data || window.learndash_settings || null;
-            if (ldCfg) nonce = ldCfg.quiz_nonce || ldCfg.nonce || ldCfg.ajaxNonce || '';
-        }
-        if (!nonce && window.wpApiSettings && window.wpApiSettings.nonce) {
-            nonce = window.wpApiSettings.nonce;
-        }
-        if (!nonce) {
-            // Ultimo resort: cerca "nonce" negli script inline della pagina
-            var scripts = Array.from(document.querySelectorAll('script:not([src])'));
-            for (var s = 0; s < scripts.length; s++) {
-                var m = scripts[s].textContent.match(/"(?:quiz_nonce|_wpnonce|nonce)"\s*:\s*"([^"]+)"/);
-                if (m) { nonce = m[1]; break; }
-            }
-        }
-
-        console.log('[Quiz] quizId:', quizId, '| courseId:', courseId, '| nonce:', nonce);
-
-        if (!quizId) {
-            chatBot.addMessage('❌ Impossibile trovare quizId nella pagina.', 0);
-            return;
-        }
-
-        // DEBUG: dump tutti i posti dove abbiamo cercato
-        if (!nonce) {
-            console.log('[Quiz][DEBUG] ─── NONCE DUMP ───');
-            console.log('[Quiz][DEBUG] input nonce/wpnonce:', nonceEl);
-            console.log('[Quiz][DEBUG] input[name="nonce"]:', document.querySelector('input[name="nonce"]'));
-            console.log('[Quiz][DEBUG] Tutti gli input hidden:', Array.from(document.querySelectorAll('input[type="hidden"]')).map(function(el){ return el.name + '=' + el.value; }));
-            console.log('[Quiz][DEBUG] wpProQuizFront:', window.wpProQuizFront);
-            console.log('[Quiz][DEBUG] wpProQuiz:', window.wpProQuiz);
-            console.log('[Quiz][DEBUG] ldVars:', window.ldVars);
-            console.log('[Quiz][DEBUG] sfwd_data:', window.sfwd_data);
-            console.log('[Quiz][DEBUG] learndash_settings:', window.learndash_settings);
-            // Cerca qualsiasi variabile globale con "nonce" nel nome
-            var nonceGlobals = Object.keys(window).filter(function(k){ try { return typeof window[k] === 'object' && window[k] !== null && JSON.stringify(window[k]).indexOf('nonce') > -1; } catch(e){ return false; } });
-            console.log('[Quiz][DEBUG] Variabili globali con "nonce":', nonceGlobals);
-            nonceGlobals.forEach(function(k){ try { console.log('[Quiz][DEBUG]  ->', k, '=', JSON.stringify(window[k]).substring(0, 500)); } catch(e){} });
-            chatBot.addMessage('❌ Nonce non trovato — apri la console (F12) e cerca "[Quiz][DEBUG]" per i dettagli.', 0);
-            return;
-        }
-
-        // 2. Raccoglie tutti i questionId dal DOM (.wpProQuiz_listItem [data-question-pro-id])
-        var allItems = Array.from(document.querySelectorAll('.wpProQuiz_listItem'));
-        if (!allItems.length) {
-            chatBot.addMessage('❌ Nessuna domanda trovata nel DOM.', 0);
-            return;
-        }
-
-        var results = {};
-        var reviewBox = [];
-        allItems.forEach(function (item, idx) {
-            var qIdNode = item.querySelector('[data-question-pro-id]');
-            var qId = item.dataset.questionProId || (qIdNode && qIdNode.dataset.questionProId);
-            if (!qId) {
-                // prova attributo id="wpProQuiz_questionListItem_N"
-                var inputs = item.querySelectorAll('input[type="radio"]');
-                if (inputs.length) qId = inputs[0].name.replace('question_', '');
-            }
-            if (!qId) { reviewBox.push({ solved: true }); return; }
-            // Marca la prima opzione come corretta (il server verifica — ma salva lo stato)
-            var optCount = item.querySelectorAll('.wpProQuiz_questionListItem').length || 4;
-            var value = {};
-            for (var i = 0; i < optCount; i++) value[i] = i === 0;
-            results[qId] = { index: idx, value: value, type: 'single', lockQuestion: false };
-            reviewBox.push({ solved: true });
-        });
-
-        // TEST: attesa fissa 30 secondi con countdown
-        var waitMs = 30000;
-        var waitSec = 30;
-
-        chatBot.addMessage('⏳ Bypass tra <b id="etass-countdown">' + waitSec + '</b> secondi...', 0);
-        var countdownStart = Date.now();
-        await new Promise(function (r) {
-            var tick = setInterval(function () {
-                var elapsed = Date.now() - countdownStart;
-                var remaining = Math.max(0, Math.ceil((waitMs - elapsed) / 1000));
-                var el = document.getElementById('etass-countdown');
-                if (el) el.textContent = remaining;
-                if (elapsed >= waitMs) { clearInterval(tick); r(); }
-            }, 1000);
-        });
-
-        var fakeStarted = Date.now() - 30000;
-
-        var payload = new URLSearchParams({
-            action:       'wp_pro_quiz_cookie_save_quiz',
-            course_id:    courseId,
-            quiz:         quizId,
-            quizId:       quizId,
-            quiz_started: fakeStarted,
-            results:      JSON.stringify(results),
-            nonce:        nonce,
-            quiz_nonce:   nonce,
-            _wpnonce:     nonce,
-            _ajax_nonce:  nonce,
-            reviewBox:    JSON.stringify(reviewBox)
-        });
-
-        chatBot.addMessage('⏳ Invio bypass quiz...', 0);
-        console.log('[Quiz] Bypass payload:', Object.fromEntries(payload));
-
-        try {
-            var res = await fetch('/wp-admin/admin-ajax.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest' },
-                body: payload.toString(),
-                credentials: 'include'
-            });
-            var json = await res.json();
-            console.log('[Quiz] Bypass risposta:', json);
-            if (json.success) {
-                chatBot.addMessage('✅ <b>Bypass inviato!</b> Stato quiz salvato — puoi procedere alla schermata finale.', 0);
-            } else {
-                chatBot.addMessage('⚠️ Il server ha risposto ma con success=false. Controlla la console.', 0);
-            }
-        } catch (e) {
-            chatBot.addMessage('❌ Errore nella chiamata: ' + e.message, 0);
-        }
-      } catch (err) {
-          console.error('[Quiz] bypassQuiz() ERRORE:', err);
-          chatBot.addMessage('❌ Errore bypass: ' + err.message, 0);
-      }
+    function sleep(ms) {
+        return new Promise(function (r) { _setTimeout(r, ms); });
     }
 
-    // Esponi bypassQuiz globalmente per uso manuale dalla console
-    E.bypassQuiz = bypassQuiz;
-
-    // ── START / STOP per toggle live ──────────────────────
-    var waitingForQuiz = false;
-
-    // Cerca la prima domanda VISIBILE (display !== 'none')
+    // ── Trova la domanda attualmente visibile ──
     function getVisibleQuestion() {
         return Array.from(document.querySelectorAll('.wpProQuiz_listItem')).find(function (el) {
             return window.getComputedStyle(el).display !== 'none';
         });
     }
 
+    // ── Cerca i dati del quiz (risposte corrette) negli script inline ──
+    function findQuizData() {
+        // wpProQuiz inietta i dati come JSON in un tag <script>
+        // Cerchiamo strutture con "answer" e "correct" o "points"
+        var scripts = Array.from(document.querySelectorAll('script:not([src])'));
+        for (var i = 0; i < scripts.length; i++) {
+            var text = scripts[i].textContent;
+
+            // Pattern 1: LearnDash/wpProQuiz inietta un array JSON con dati domande
+            // Cerca variabili come: var defined_xxx = [{...}]
+            var match = text.match(/var\s+\w+\s*=\s*(\[\s*\{[\s\S]*?"answer"[\s\S]*?\}\s*\])\s*;/);
+            if (match) {
+                try { return JSON.parse(match[1]); } catch (e) { console.warn('[Quiz] Parse fallito per pattern 1:', e); }
+            }
+
+            // Pattern 2: Cerca JSON array con campi "points" in ogni answer
+            match = text.match(/(\[\s*\{[^;]*"points"\s*:[^;]*"answer"[^;]*\}\s*\])/);
+            if (match) {
+                try { return JSON.parse(match[1]); } catch (e) {}
+            }
+
+            // Pattern 3: wpProQuizFront data injection
+            match = text.match(/wpProQuizFront\s*\(\s*\d+\s*,\s*(\{[\s\S]*?\})\s*\)/);
+            if (match) {
+                try {
+                    var cfg = JSON.parse(match[1]);
+                    if (cfg.json) return JSON.parse(cfg.json);
+                    if (cfg.questionData) return cfg.questionData;
+                } catch (e) {}
+            }
+        }
+
+        // Cerca anche nelle variabili globali
+        var globals = Object.keys(window);
+        for (var g = 0; g < globals.length; g++) {
+            var key = globals[g];
+            if (key.indexOf('defined_') === 0 || key.indexOf('quizData') === 0) {
+                var val = window[key];
+                if (Array.isArray(val) && val.length && val[0].answer) return val;
+            }
+        }
+
+        return null;
+    }
+
+    // ── Trova l'indice della risposta corretta per una domanda dal quiz data ──
+    function findCorrectIndex(questionData) {
+        if (!questionData || !questionData.answer) return -1;
+        var answers = questionData.answer;
+        for (var i = 0; i < answers.length; i++) {
+            // wpProQuiz usa "correct" boolean o "points" > 0 per la risposta giusta
+            if (answers[i].correct === true || answers[i].correct === 1 ||
+                answers[i].correct === '1' || answers[i].correct === 'true') {
+                return i;
+            }
+        }
+        // Fallback: la risposta con più punti
+        var maxPts = -1, maxIdx = 0;
+        for (var j = 0; j < answers.length; j++) {
+            var pts = parseInt(answers[j].points) || 0;
+            if (pts > maxPts) { maxPts = pts; maxIdx = j; }
+        }
+        return maxPts > 0 ? maxIdx : -1;
+    }
+
+    // ── AUTO-SOLVE: risponde a tutte le domande e completa ──
+    async function autoSolveQuiz() {
+      try {
+        console.log('[Quiz] autoSolveQuiz() avviato');
+
+        // Trova dati quiz
+        var quizData = findQuizData();
+        console.log('[Quiz] Quiz data trovati:', quizData ? quizData.length + ' domande' : 'NESSUNO');
+
+        var allItems = Array.from(document.querySelectorAll('.wpProQuiz_listItem'));
+        var nQuestions = allItems.length;
+        if (!nQuestions) {
+            chatBot.addMessage('❌ Nessuna domanda trovata nel DOM.', 0);
+            return;
+        }
+
+        chatBot.addMessage('🧠 Trovate <b>' + nQuestions + '</b> domande — risolvo automaticamente...', 0);
+
+        // Per ogni domanda: seleziona risposta corretta, attendi, vai avanti
+        for (var q = 0; q < nQuestions; q++) {
+            // Aspetta che la domanda corrente sia visibile
+            var visible = null;
+            for (var wait = 0; wait < 50; wait++) {
+                visible = getVisibleQuestion();
+                if (visible) break;
+                await sleep(200);
+            }
+            if (!visible) {
+                console.warn('[Quiz] Domanda', q + 1, 'non visibile dopo attesa');
+                break;
+            }
+
+            // Leggi testo domanda
+            var qTextEl = visible.querySelector('.wpProQuiz_question_text');
+            var qText = qTextEl ? qTextEl.innerText.trim() : '(domanda ' + (q + 1) + ')';
+            console.log('[Quiz] Domanda', q + 1, ':', qText.substring(0, 80));
+
+            // Trova le radio/checkbox
+            var answerLabels = Array.from(visible.querySelectorAll('.wpProQuiz_questionListItem'));
+            var radios = Array.from(visible.querySelectorAll('.wpProQuiz_questionListItem input[type="radio"], .wpProQuiz_questionListItem input[type="checkbox"]'));
+
+            // Trova la risposta corretta
+            var correctIdx = -1;
+
+            // Metodo 1: dal quiz data JSON (se trovato)
+            if (quizData && quizData[q]) {
+                correctIdx = findCorrectIndex(quizData[q]);
+                console.log('[Quiz]   -> dal quizData: indice', correctIdx);
+            }
+
+            // Metodo 2: cerca data-correct o data-pos sugli elementi
+            if (correctIdx < 0) {
+                answerLabels.forEach(function (lbl, idx) {
+                    if (lbl.dataset.correct === '1' || lbl.dataset.correct === 'true') correctIdx = idx;
+                });
+            }
+
+            // Metodo 3: cerca attributo sortString "1" (wpProQuiz sort order hack)
+            if (correctIdx < 0) {
+                answerLabels.forEach(function (lbl, idx) {
+                    var sortEl = lbl.querySelector('[data-sort]');
+                    if (sortEl && sortEl.dataset.sort === '1') correctIdx = idx;
+                });
+            }
+
+            // Fallback: se non trovo la risposta corretta, seleziono la prima
+            if (correctIdx < 0) {
+                correctIdx = 0;
+                console.log('[Quiz]   -> risposta corretta non trovata, uso indice 0 (fallback)');
+            }
+
+            // Clicca la radio/checkbox corretta
+            if (correctIdx < radios.length) {
+                radios[correctIdx].click();
+                var ansText = answerLabels[correctIdx] ? answerLabels[correctIdx].innerText.trim().substring(0, 60) : '?';
+                console.log('[Quiz]   -> selezionato:', String.fromCharCode(65 + correctIdx), '-', ansText);
+                chatBot.addMessage('✅ <b>D' + (q + 1) + ':</b> ' + String.fromCharCode(65 + correctIdx) + ') ' + ansText, 0);
+            }
+
+            // Attendi un po' (simula lettura umana: 3-6 secondi)
+            var humanDelay = 3000 + Math.random() * 3000;
+            await sleep(humanDelay);
+
+            // Clicca "Successivo" o "Completa quiz"
+            var nextBtn = visible.querySelector('input[name="next"]');
+            if (!nextBtn) nextBtn = document.querySelector('.wpProQuiz_button[name="next"]');
+            var completeBtn = document.querySelector('input[name="wpProQuiz_completed_quiz"]');
+
+            if (q < nQuestions - 1 && nextBtn) {
+                nextBtn.click();
+                console.log('[Quiz]   -> cliccato Successivo');
+                await sleep(500);
+            } else if (completeBtn) {
+                // Ultima domanda o bottone completa già visibile
+                console.log('[Quiz]   -> è l\'ultima domanda, cerco bottone Completa');
+            }
+        }
+
+        // Clicca "Completa quiz"
+        await sleep(1000);
+        var completeBtn = document.querySelector('input[name="wpProQuiz_completed_quiz"]');
+        if (!completeBtn) completeBtn = document.querySelector('.wpProQuiz_QuestionButton[name="wpProQuiz_completed_quiz"]');
+        if (!completeBtn) completeBtn = document.querySelector('.wpProQuiz_button2[name="next"]');
+        // Cerca anche un qualsiasi bottone di completamento
+        if (!completeBtn) {
+            var allBtns = Array.from(document.querySelectorAll('input[type="button"], input[type="submit"], button'));
+            completeBtn = allBtns.find(function (b) {
+                var t = (b.value || b.textContent || '').toLowerCase();
+                return t.indexOf('complet') > -1 || t.indexOf('finish') > -1 || t.indexOf('invia') > -1;
+            });
+        }
+
+        if (completeBtn) {
+            completeBtn.click();
+            console.log('[Quiz] ✅ Cliccato bottone Completa Quiz');
+            chatBot.addMessage('🎉 <b>Quiz completato!</b> Il sistema sta elaborando i risultati...', 0);
+        } else {
+            console.warn('[Quiz] Bottone "Completa" non trovato');
+            chatBot.addMessage('⚠️ Quiz risolto ma non trovo il bottone "Completa". Cliccalo manualmente.', 0);
+        }
+
+      } catch (err) {
+          console.error('[Quiz] autoSolveQuiz() ERRORE:', err);
+          chatBot.addMessage('❌ Errore: ' + err.message, 0);
+      }
+    }
+
+    // Esponi per uso manuale
+    E.bypassQuiz = autoSolveQuiz;
+
+    // ── START / STOP ──────────────────────────────────────
+    var waitingForQuiz = false;
+
     function startBot() {
-        // Se c'è già una domanda visibile, il quiz è già partito
         if (getVisibleQuestion()) {
             if (isAutoQuiz()) {
-                console.log('[Quiz] Domanda visibile e autoQuiz attivo — avvio bypass...');
-                bypassQuiz();
-            } else {
-                console.log('[Quiz] Domanda visibile ma autoQuiz disattivato.');
+                console.log('[Quiz] Domanda visibile e autoQuiz attivo — avvio...');
+                autoSolveQuiz();
             }
             return;
         }
@@ -194,26 +232,20 @@
         if (waitingForQuiz) return;
         waitingForQuiz = true;
 
-        // Premi sempre il bottone "Inizia Quiz" (il quiz non è ancora partito)
         var startBtn = document.querySelector('input[name="startQuiz"]');
         if (startBtn) {
             console.log('[Quiz] Premo "Inizia Quiz" automaticamente...');
             chatBot.addMessage('▶️ Avvio quiz automaticamente...', 0);
             setTimeout(function () { startBtn.click(); }, 500);
-        } else {
-            console.log('[Quiz] Bottone "Inizia Quiz" non trovato — in attesa...');
         }
 
-        // Aspetta che appaia la prima domanda VISIBILE
         var startPoll = setInterval(function () {
             if (getVisibleQuestion()) {
                 clearInterval(startPoll);
                 waitingForQuiz = false;
                 if (isAutoQuiz()) {
-                    console.log('[Quiz] Prima domanda visibile e autoQuiz attivo — avvio bypass...');
-                    setTimeout(bypassQuiz, 500);
-                } else {
-                    console.log('[Quiz] Prima domanda visibile ma autoQuiz disattivato.');
+                    console.log('[Quiz] Prima domanda visibile — avvio auto-solve...');
+                    setTimeout(autoSolveQuiz, 500);
                 }
             }
         }, 200);
@@ -224,10 +256,8 @@
         console.log('[Quiz] Bot fermato.');
     }
 
-    // ── Registra modulo per toggle live ──
     E.modules.quiz = { start: startBot, stop: stopBot };
 
-    // Avvio iniziale
     if (E.botEnabled) {
         startBot();
     } else {
