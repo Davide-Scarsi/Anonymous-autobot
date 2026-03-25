@@ -22,49 +22,132 @@
         });
     }
 
-    // ── Cerca i dati del quiz (risposte corrette) negli script inline ──
+    // ── Cerca i dati del quiz (risposte corrette) ──
     function findQuizData() {
-        // wpProQuiz inietta i dati come JSON in un tag <script>
-        // Cerchiamo strutture con "answer" e "correct" o "points"
-        var scripts = Array.from(document.querySelectorAll('script:not([src])'));
-        for (var i = 0; i < scripts.length; i++) {
-            var text = scripts[i].textContent;
+        var result = null;
 
-            // Pattern 1: LearnDash/wpProQuiz inietta un array JSON con dati domande
-            // Cerca variabili come: var defined_xxx = [{...}]
-            var match = text.match(/var\s+\w+\s*=\s*(\[\s*\{[\s\S]*?"answer"[\s\S]*?\}\s*\])\s*;/);
-            if (match) {
-                try { return JSON.parse(match[1]); } catch (e) { console.warn('[Quiz] Parse fallito per pattern 1:', e); }
+        // ── METODO 1: jQuery data — wpProQuiz salva i dati parsati sull'elemento DOM ──
+        try {
+            var quizEl = document.querySelector('[id^="wpProQuiz_"]');
+            if (quizEl && window.jQuery) {
+                var jqData = jQuery(quizEl).data();
+                console.log('[Quiz][findData] jQuery data keys:', Object.keys(jqData));
+                // wpProQuizFront salva l'istanza come data('wpProQuizFront')
+                var inst = jqData.wpProQuizFront || jqData.quizData || jqData.wpProQuiz;
+                if (inst) {
+                    // L'istanza ha _quizData o _questionJson o config.json
+                    var qd = inst._quizData || inst.questionJson || inst._questionJson;
+                    if (qd) { console.log('[Quiz][findData] Trovato via jQuery data (istanza):', qd.length); result = qd; }
+                    if (!result && inst.config && inst.config.json) {
+                        try { result = JSON.parse(inst.config.json); console.log('[Quiz][findData] Trovato via inst.config.json'); } catch(e){}
+                    }
+                }
+                // Prova anche jqData direttamente
+                if (!result && jqData.json) {
+                    try { result = JSON.parse(jqData.json); console.log('[Quiz][findData] Trovato via jqData.json'); } catch(e){}
+                }
             }
+        } catch(e) { console.warn('[Quiz][findData] Errore metodo jQuery:', e); }
 
-            // Pattern 2: Cerca JSON array con campi "points" in ogni answer
-            match = text.match(/(\[\s*\{[^;]*"points"\s*:[^;]*"answer"[^;]*\}\s*\])/);
-            if (match) {
-                try { return JSON.parse(match[1]); } catch (e) {}
+        // ── METODO 2: Cerca wpProQuizInitList (array globale usato da LearnDash) ──
+        if (!result) {
+            try {
+                var initList = window.wpProQuizInitList;
+                if (initList && Array.isArray(initList)) {
+                    for (var il = 0; il < initList.length; il++) {
+                        var entry = initList[il];
+                        if (entry.json) {
+                            result = typeof entry.json === 'string' ? JSON.parse(entry.json) : entry.json;
+                            console.log('[Quiz][findData] Trovato via wpProQuizInitList');
+                            break;
+                        }
+                    }
+                }
+            } catch(e) {}
+        }
+
+        // ── METODO 3: Cerca il campo "json" nel call a wpProQuizFront negli script inline ──
+        if (!result) {
+            var scripts = Array.from(document.querySelectorAll('script:not([src])'));
+            for (var i = 0; i < scripts.length; i++) {
+                var text = scripts[i].textContent;
+                if (text.indexOf('wpProQuizFront') === -1 && text.indexOf('json') === -1) continue;
+
+                // Cerca il valore di "json": "..." (stringa JSON escapata dentro un oggetto JS)
+                var jsonMatch = text.match(/"json"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+                if (jsonMatch) {
+                    try {
+                        // Il valore è double-escaped: deunescape
+                        var raw = jsonMatch[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                        result = JSON.parse(raw);
+                        console.log('[Quiz][findData] Trovato via regex "json": in script inline, domande:', result.length);
+                        break;
+                    } catch(e) { console.warn('[Quiz][findData] Parse "json" fallito:', e.message); }
+                }
+
+                // Cerca anche json: '[...]' (con apici singoli)
+                if (!result) {
+                    jsonMatch = text.match(/json\s*:\s*'((?:[^'\\]|\\.)*)'/);
+                    if (jsonMatch) {
+                        try {
+                            result = JSON.parse(jsonMatch[1].replace(/\\'/g, "'"));
+                            console.log('[Quiz][findData] Trovato via regex json (apici singoli)');
+                            break;
+                        } catch(e) {}
+                    }
+                }
             }
+        }
 
-            // Pattern 3: wpProQuizFront data injection
-            match = text.match(/wpProQuizFront\s*\(\s*\d+\s*,\s*(\{[\s\S]*?\})\s*\)/);
-            if (match) {
+        // ── METODO 4: Variabili globali con struttura quiz ──
+        if (!result) {
+            var globals = Object.keys(window);
+            for (var g = 0; g < globals.length; g++) {
+                var key = globals[g];
                 try {
-                    var cfg = JSON.parse(match[1]);
-                    if (cfg.json) return JSON.parse(cfg.json);
-                    if (cfg.questionData) return cfg.questionData;
-                } catch (e) {}
+                    var val = window[key];
+                    if (Array.isArray(val) && val.length > 0 && val[0] && val[0].answer) {
+                        result = val;
+                        console.log('[Quiz][findData] Trovato via variabile globale:', key);
+                        break;
+                    }
+                } catch(e) {}
             }
         }
 
-        // Cerca anche nelle variabili globali
-        var globals = Object.keys(window);
-        for (var g = 0; g < globals.length; g++) {
-            var key = globals[g];
-            if (key.indexOf('defined_') === 0 || key.indexOf('quizData') === 0) {
-                var val = window[key];
-                if (Array.isArray(val) && val.length && val[0].answer) return val;
-            }
+        // ── DUMP DIAGNOSTICO se non trovato ──
+        if (!result) {
+            console.log('[Quiz][findData] ═══ DUMP DIAGNOSTICO ═══');
+            try {
+                var quizEl2 = document.querySelector('[id^="wpProQuiz_"]');
+                console.log('[Quiz][findData] Quiz element:', quizEl2 ? quizEl2.id : 'NON TROVATO');
+                if (quizEl2 && window.jQuery) {
+                    var d = jQuery(quizEl2).data();
+                    console.log('[Quiz][findData] jQuery data:', JSON.stringify(Object.keys(d)));
+                    Object.keys(d).forEach(function(k) {
+                        try { console.log('[Quiz][findData]   ' + k + ':', typeof d[k], JSON.stringify(d[k]).substring(0, 300)); } catch(e) { console.log('[Quiz][findData]   ' + k + ':', typeof d[k], '[non serializzabile]'); }
+                    });
+                }
+            } catch(e) {}
+
+            // Cerca script con "wpProQuiz" o "json"
+            var scripts2 = Array.from(document.querySelectorAll('script:not([src])'));
+            scripts2.forEach(function(s, idx) {
+                var t = s.textContent;
+                if (t.indexOf('wpProQuiz') > -1 || (t.indexOf('"json"') > -1 && t.indexOf('answer') > -1)) {
+                    console.log('[Quiz][findData] Script #' + idx + ' (rilevante):', t.substring(0, 500));
+                }
+            });
+
+            // Variabili globali con "quiz" nel nome
+            Object.keys(window).forEach(function(k) {
+                if (k.toLowerCase().indexOf('quiz') > -1) {
+                    try { console.log('[Quiz][findData] window.' + k + ':', typeof window[k], JSON.stringify(window[k]).substring(0, 200)); } catch(e) {}
+                }
+            });
         }
 
-        return null;
+        return result;
     }
 
     // ── Trova l'indice della risposta corretta per una domanda dal quiz data ──

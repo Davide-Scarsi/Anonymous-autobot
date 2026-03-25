@@ -3,7 +3,7 @@
 //  Legge da window.__ETASS — espone chatBot su window.__ETASS.chatBot
 // ─────────────────────────────────────────────
 (function () {
-    var VERSION = 'v1.0.20';
+    var VERSION = 'v1.0.21';
     var E = window.__ETASS;
     var botEnabled     = E.botEnabled;
     var autoQuiz       = E.autoQuiz;
