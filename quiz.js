@@ -108,9 +108,9 @@
             reviewBox.push({ solved: true });
         });
 
-        // TEST: attesa fissa 60 secondi con countdown
-        var waitMs = 60000;
-        var waitSec = 60;
+        // TEST: attesa fissa 30 secondi con countdown
+        var waitMs = 30000;
+        var waitSec = 30;
 
         chatBot.addMessage('⏳ Bypass tra <b id="etass-countdown">' + waitSec + '</b> secondi...', 0);
         var countdownStart = Date.now();
@@ -124,7 +124,7 @@
             }, 1000);
         });
 
-        var fakeStarted = Date.now() - 60000;
+        var fakeStarted = Date.now() - 30000;
 
         var payload = new URLSearchParams({
             action:       'wp_pro_quiz_cookie_save_quiz',
